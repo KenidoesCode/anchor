@@ -15,8 +15,10 @@ const ITEMS: NavItem[] = [
   { href: "/overview", label: "Overview", roles: ["director"] },
   { href: "/people", label: "Register", roles: ["director", "deployment_coordinator", "lead_auditor", "auditor", "training_admin", "qehs_consultant", "finance"] },
   { href: "/certifications", label: "Certifications", roles: ["director", "deployment_coordinator", "training_admin"] },
+  { href: "/renewals", label: "Renewals", roles: ["director", "deployment_coordinator", "training_admin"] },
   { href: "/deployments", label: "Deployments", roles: ["director", "deployment_coordinator"] },
   { href: "/assign", label: "Assign", roles: ["director", "deployment_coordinator"] },
+  { href: "/admin", label: "Admin", roles: ["director"] },
   { href: "/activity", label: "Activity log", roles: ["director"] },
 ];
 

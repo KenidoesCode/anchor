@@ -4,6 +4,7 @@ import {
   addCertification,
   createPerson,
   getPersonMasked,
+  personDetail,
   unmaskNationalId,
 } from "../person-service";
 import { protectedProcedure, roleProcedure, router } from "../trpc";
@@ -77,6 +78,11 @@ export const personRouter = router({
   get: roleProcedure(...INTERNAL)
     .input(z.object({ personId: z.string().uuid() }))
     .query(({ ctx, input }) => getPersonMasked(ctx.db, input.personId)),
+
+  /** Masked person + their certifications with status (detail view). */
+  detail: roleProcedure(...INTERNAL)
+    .input(z.object({ personId: z.string().uuid() }))
+    .query(({ ctx, input }) => personDetail(ctx.db, input.personId, ctx.today)),
 
   /** Unmask a national identifier — reason-required, logged (PRD §10.2). Admin/Director only. */
   unmaskNationalId: roleProcedure(...ONBOARD_ROLES)

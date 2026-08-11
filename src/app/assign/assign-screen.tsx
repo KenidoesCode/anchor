@@ -49,6 +49,9 @@ export function AssignScreen() {
 
   const validation = trpc.assignment.validate.useQuery(input!, { enabled: input !== null });
   const create = trpc.assignment.create.useMutation();
+  const me = trpc.session.me.useQuery(undefined, { retry: false });
+  const override = trpc.override.approve.useMutation();
+  const [justification, setJustification] = useState("");
 
   const selectedName = officers.data?.find((o) => o.personId === personId)?.fullName;
   const outcome = validation.data?.outcome;
@@ -170,6 +173,42 @@ export function AssignScreen() {
             </span>
           )}
         </div>
+
+        {/* Override path (F1 §3.2): Director-only, typed justification. */}
+        {outcome === "blocked" && input && !override.isSuccess && (
+          <div className="mt-4 rounded-sm border border-l-4 border-rule border-l-state-critical bg-surface p-4">
+            {me.data?.role === "director" ? (
+              <>
+                <p className="mb-2 text-[13px] font-semibold">Request Director override</p>
+                <textarea
+                  className="mb-2 w-full rounded-sm border border-rule bg-surface p-2 text-sm"
+                  rows={2}
+                  placeholder="Type a justification (recorded permanently on the activity log)…"
+                  value={justification}
+                  onChange={(e) => setJustification(e.target.value)}
+                />
+                <Button
+                  disabled={justification.trim().length < 10 || override.isPending}
+                  onClick={() => override.mutate({ assignment: input, justification })}
+                >
+                  Approve override
+                </Button>
+                {override.isError && (
+                  <span className="ml-2 text-[13px] font-semibold text-state-critical">{override.error.message}</span>
+                )}
+              </>
+            ) : (
+              <p className="text-[13px] text-ink-muted">
+                Blocked. A Director override is required — sign in as a Director to record a justification.
+              </p>
+            )}
+          </div>
+        )}
+        {override.isSuccess && (
+          <p className="mt-4 text-[13px] font-semibold text-state-critical">
+            Override recorded. Deployment saved and flagged on the Director Overview until resolved.
+          </p>
+        )}
       </div>
     </div>
   );

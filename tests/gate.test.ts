@@ -73,6 +73,20 @@ describe("evaluateGate — single-type requirement", () => {
     expect(r.outcome).toBe("confirmed");
   });
 
+  it("BLOCKS with a sensible message when a cert is valid now but expires before a FUTURE start", () => {
+    // Cert valid today (expiry 2026-10-15) but the posting starts 2027-01-01.
+    const r = evaluateGate({
+      ...base,
+      deploymentStart: "2027-01-01",
+      deploymentEnd: "2027-06-30",
+      heldCertifications: [cert("WSHO", "2026-10-15")],
+    });
+    expect(r.outcome).toBe("blocked");
+    expect(r.reasons[0]?.message).toContain("before this deployment starts");
+    expect(r.reasons[0]?.message).not.toMatch(/-\d+ days ago/); // no nonsensical negative
+    expect(r.reasons[0]?.daysLapsed).toBeUndefined();
+  });
+
   it("CONFIRMS-with-monitoring for an open-ended deployment with a currently-valid cert (ADR-0005)", () => {
     const r = evaluateGate({
       ...base,

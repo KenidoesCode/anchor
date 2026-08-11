@@ -10,6 +10,13 @@ import { roleProcedure, router } from "../trpc";
 const admin = roleProcedure("director");
 
 export const adminRouter = router({
+  listSettings: admin.query(({ ctx }) =>
+    ctx.db.select().from(s.appSetting).orderBy(s.appSetting.key),
+  ),
+  listEscalationStages: admin.query(({ ctx }) =>
+    ctx.db.select().from(s.escalationStageConfig).orderBy(s.escalationStageConfig.sortOrder),
+  ),
+
   createAuthority: admin
     .input(z.object({ code: z.string().min(1), name: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {

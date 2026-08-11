@@ -12,6 +12,22 @@ export const catalogueRouter = router({
       .orderBy(asc(s.role.code)),
   ),
 
+  certificationTypes: protectedProcedure.query(({ ctx }) =>
+    ctx.db
+      .select({ id: s.certificationType.id, code: s.certificationType.code, name: s.certificationType.name })
+      .from(s.certificationType)
+      .where(isNull(s.certificationType.deletedAt))
+      .orderBy(asc(s.certificationType.code)),
+  ),
+
+  authorities: protectedProcedure.query(({ ctx }) =>
+    ctx.db
+      .select({ id: s.authority.id, code: s.authority.code, name: s.authority.name })
+      .from(s.authority)
+      .where(isNull(s.authority.deletedAt))
+      .orderBy(asc(s.authority.code)),
+  ),
+
   sites: protectedProcedure.query(({ ctx }) =>
     ctx.db
       .select({

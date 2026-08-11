@@ -39,19 +39,19 @@ export function OfficerSelector({ officers, selectedId, onSelect }: Props) {
   return (
     <ul className="overflow-hidden rounded-sm border border-rule" role="listbox" aria-label="Officers">
       {officers.map((o) => {
-        const ineligible = o.outcome === "blocked";
+        const blocked = o.outcome === "blocked";
         return (
           <li key={o.personId} role="option" aria-selected={o.personId === selectedId}>
+            {/* Blocked officers are shown greyed but remain selectable — the
+                coordinator can open the full Blocked determination and, if a
+                Director, request an override (UXF §3, F1 §3.2). */}
             <button
               type="button"
-              disabled={ineligible}
               aria-selected={o.personId === selectedId}
-              onClick={() => !ineligible && onSelect(o.personId)}
+              onClick={() => onSelect(o.personId)}
               className={cn(
-                "flex w-full items-center gap-2.5 border-b border-rule px-3 py-2.5 text-left last:border-b-0",
-                ineligible
-                  ? "cursor-not-allowed bg-[#fafbfb] text-ink-muted"
-                  : "cursor-pointer bg-surface hover:bg-canvas",
+                "flex w-full cursor-pointer items-center gap-2.5 border-b border-rule px-3 py-2.5 text-left last:border-b-0 hover:bg-canvas",
+                blocked ? "bg-[#fafbfb] text-ink-muted" : "bg-surface",
                 o.personId === selectedId && "bg-[#eef4fb] hover:bg-[#eef4fb]",
               )}
             >

@@ -183,9 +183,20 @@ function evaluateItem(
     };
   }
 
-  // Held but not valid at start → lapsed. Report the most recently expired.
+  // Held but not valid at the deployment START. Two cases:
+  //  (a) genuinely lapsed by now → "lapsed N days ago"
+  //  (b) still valid now but expires before the posting starts → "expires DATE,
+  //      before this deployment starts" (no nonsensical negative "days ago").
   const mostRecent = [...held].sort((a, b) => (a.expiryDate < b.expiryDate ? 1 : -1))[0]!;
-  const daysLapsed = daysBetween(mostRecent.expiryDate, now);
+  const alreadyLapsed = mostRecent.expiryDate < now;
+  const message = alreadyLapsed
+    ? `${mostRecent.certificationTypeCode} registration ${mostRecent.registrationNumber} lapsed ${daysBetween(
+        mostRecent.expiryDate,
+        now,
+      )} days ago.`
+    : `${mostRecent.certificationTypeCode} ${mostRecent.registrationNumber} expires ${formatDate(
+        mostRecent.expiryDate,
+      )}, before this deployment starts.`;
   return {
     coverage: "missing",
     reasons: [
@@ -194,8 +205,8 @@ function evaluateItem(
         certificationTypeCode: mostRecent.certificationTypeCode,
         registrationNumber: mostRecent.registrationNumber,
         expiryDate: mostRecent.expiryDate,
-        daysLapsed,
-        message: `${mostRecent.certificationTypeCode} registration ${mostRecent.registrationNumber} lapsed ${daysLapsed} days ago.`,
+        ...(alreadyLapsed ? { daysLapsed: daysBetween(mostRecent.expiryDate, now) } : {}),
+        message,
       },
     ],
   };

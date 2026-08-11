@@ -91,6 +91,35 @@ export async function getPersonMasked(db: Db, personId: string) {
   };
 }
 
+/** Masked person + their certifications with derived status (for the detail view). */
+export async function personDetail(db: Db, personId: string, today: string) {
+  const person = await getPersonMasked(db, personId);
+  if (!person) return null;
+  const { certStatus } = await import("./register-service");
+  const certs = await db
+    .select({
+      id: s.certification.id,
+      code: s.certificationType.code,
+      name: s.certificationType.name,
+      registrationNumber: s.certification.registrationNumber,
+      issueDate: s.certification.issueDate,
+      expiryDate: s.certification.expiryDate,
+      documentFilename: s.certification.documentFilename,
+      deletedAt: s.certification.deletedAt,
+    })
+    .from(s.certification)
+    .innerJoin(s.certificationType, eq(s.certification.certificationTypeId, s.certificationType.id))
+    .where(eq(s.certification.personId, personId));
+  return {
+    person,
+    certifications: certs.map((c) => ({
+      ...c,
+      superseded: c.deletedAt !== null,
+      status: certStatus(c.expiryDate, today),
+    })),
+  };
+}
+
 /**
  * Unmask a national identifier — a distinct, REASON-REQUIRED, LOGGED procedure
  * (PRD §10.2). Held only by Training Administrator and Director (enforced at the
