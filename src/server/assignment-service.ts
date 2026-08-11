@@ -80,32 +80,45 @@ const NO_REQUIREMENT: (versionId: string) => GateResult = (versionId) => ({
   ],
 });
 
+/** The minimum needed to run the gate for one candidate against one role/period. */
+export interface GateQuery {
+  personId: string;
+  roleId: string;
+  startDate: string;
+  endDate: string | null;
+}
+
 /**
- * Run the assignment gate against the live ledger. Read-only; used by both
- * `assignment.validate` (live panel) and `assignment.create` (the control).
+ * Run the assignment gate against the live ledger. Read-only; used by the live
+ * panel (`assignment.validate`), the pre-sorted officer selector, and the
+ * control (`assignment.create`).
  */
-export async function validateAssignment(
-  db: Db,
-  input: AssignmentInput,
-  now: string,
-): Promise<GateResult> {
-  const resolved = await resolveRequirement(db, input.roleId, now);
+export async function runGate(db: Db, q: GateQuery, now: string): Promise<GateResult> {
+  const resolved = await resolveRequirement(db, q.roleId, now);
   if (!resolved) return NO_REQUIREMENT("");
 
   const [held, overlaps] = await Promise.all([
-    heldCertifications(db, input.personId),
-    overlappingDeployments(db, input.personId, input.startDate, input.endDate),
+    heldCertifications(db, q.personId),
+    overlappingDeployments(db, q.personId, q.startDate, q.endDate),
   ]);
 
   return evaluateGate({
     now,
-    deploymentStart: input.startDate,
-    deploymentEnd: input.endDate,
+    deploymentStart: q.startDate,
+    deploymentEnd: q.endDate,
     requirement: resolved.node,
     requirementVersionId: resolved.requirementVersionId,
     heldCertifications: held,
     overlappingDeployments: overlaps,
   });
+}
+
+export function validateAssignment(
+  db: Db,
+  input: AssignmentInput,
+  now: string,
+): Promise<GateResult> {
+  return runGate(db, input, now);
 }
 
 export interface CreatedAssignment {
@@ -128,7 +141,7 @@ export async function createAssignment(
   actorId: string,
   now: string,
 ): Promise<CreatedAssignment> {
-  const result = await validateAssignment(db, input, now);
+  const result = await runGate(db, input, now);
 
   if (result.outcome === "blocked") {
     throw new AssignmentBlockedError(result);

@@ -1,0 +1,329 @@
+/*
+ * Design tokens — single source, referenced everywhere (PRD §11, CLAUDE.md).
+ * Brand colours are identity only; status colours are a separate, darker ramp.
+ * A brand colour must never convey system state (UXS §3).
+ *
+ * Fonts are system stacks here: the specified Inter / Inter Tight / IBM Plex
+ * Mono must be self-hosted (no external CDN — a data-residency requirement,
+ * PRD §11.2). Self-hosting the real faces is a later task.
+ */
+:root {
+  --gs-green: #00a551;
+  --gs-green-deep: #00753a;
+  --gs-navy: #1c2e6e;
+  --gs-indigo: #343a94;
+  --gs-red: #d9342b;
+
+  --ink: #0f1720;
+  --ink-muted: #5a6672;
+  --rule: #d8dde2;
+  --surface: #ffffff;
+  --canvas: #f4f6f7;
+
+  /* Status ramp — deliberately not brand green/red (UXS §3, PRD §11.1). */
+  --state-critical: #b3261e;
+  --state-warning: #b26b00;
+  --state-ok: #1e6b45;
+  --state-info: #1f5fa8;
+  --state-neutral: #5a6672;
+
+  --focus: #1f5fa8;
+
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "IBM Plex Mono", "Cascadia Code", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono,
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus ring — 2px, offset 2px (UXS §9). */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------- shell ------ */
+
+.topbar {
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+}
+.topbar .mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--gs-green);
+  box-shadow: 20px 0 0 var(--gs-green), 40px 0 0 var(--gs-green);
+  margin-right: 40px;
+}
+.topbar .brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--gs-navy);
+}
+
+main.content {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.breadcrumb {
+  color: var(--ink-muted);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 24px;
+  color: var(--gs-navy);
+  margin: 0 0 4px;
+}
+.subtitle {
+  color: var(--ink-muted);
+  margin: 0 0 20px;
+}
+
+/* ------------------------------------------------------ assign layout ---- */
+
+.assign-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .assign-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 20px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+.field label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.field select,
+.field input {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.field .hint {
+  color: var(--ink-muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* ----------------------------------------------------- officer list ------ */
+
+.officers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.officer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 12px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+.officer:last-child {
+  border-bottom: 0;
+}
+.officer[aria-selected="true"] {
+  background: #eef4fb;
+}
+.officer.ineligible {
+  cursor: not-allowed;
+  color: var(--ink-muted);
+  background: #fafbfb;
+}
+.officer .glyph {
+  width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+.officer .who {
+  flex: 1;
+  min-width: 0;
+}
+.officer .name {
+  font-weight: 600;
+}
+.officer .reason {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------- status chip --- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.chip .glyph {
+  font-weight: 700;
+}
+.chip--critical {
+  color: var(--state-critical);
+  background: rgba(179, 38, 30, 0.08);
+  border-color: rgba(179, 38, 30, 0.4);
+}
+.chip--warning {
+  color: var(--state-warning);
+  background: rgba(178, 107, 0, 0.08);
+  border-color: rgba(178, 107, 0, 0.4);
+}
+.chip--ok {
+  color: var(--state-ok);
+  background: rgba(30, 107, 69, 0.08);
+  border-color: rgba(30, 107, 69, 0.4);
+}
+.chip--neutral {
+  color: var(--state-neutral);
+  background: rgba(90, 102, 114, 0.08);
+  border-color: rgba(90, 102, 114, 0.4);
+}
+
+/* ---------------------------------------------------- validation panel --- */
+
+.panel {
+  border: 1px solid var(--rule);
+  border-left-width: 4px;
+  border-radius: 2px;
+  padding: 18px;
+  transition: opacity 160ms ease;
+}
+.panel--blocked {
+  border-left-color: var(--state-critical);
+}
+.panel--conditional {
+  border-left-color: var(--state-warning);
+}
+.panel--confirmed {
+  border-left-color: var(--state-ok);
+}
+.panel--idle {
+  border-left-color: var(--rule);
+  color: var(--ink-muted);
+}
+.panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.panel--blocked h2 {
+  color: var(--state-critical);
+}
+.panel--conditional h2 {
+  color: var(--state-warning);
+}
+.panel--confirmed h2 {
+  color: var(--state-ok);
+}
+.panel p {
+  margin: 0 0 10px;
+}
+
+/* --------------------------------------------------------------- button --- */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.btn {
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--gs-navy);
+  border-radius: 2px;
+  background: var(--gs-navy);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:disabled {
+  background: #c7cdd4;
+  border-color: #c7cdd4;
+  color: #fff;
+  cursor: not-allowed;
+}
+.btn-note {
+  color: var(--state-critical);
+  font-weight: 600;
+  font-size: 13px;
+}

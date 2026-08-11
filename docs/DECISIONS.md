@@ -164,6 +164,20 @@ reason a greyed officer is ineligible is shown **inline** in the row (UXS §5.3)
 never on hover: hover-only fails WCAG (UXS §9) and does not exist on the field
 tablets. UXS §5.3 and §9 govern.
 
+## ADR-0012 — Slice 1 UI uses plain CSS tokens; Tailwind/shadcn deferred to Slice 4 · PROPOSED
+
+The design tokens (PRD §11) are implemented as CSS custom properties in one place
+(`src/app/globals.css`) and referenced everywhere — which is the actual design
+requirement. Tailwind + shadcn/ui (the decided stack) are **not yet wired**: Slice 1
+is a single screen, and the utility/component framework earns its keep at Slice 4
+(the register/expiry tables). This is a deferral, not a substitution — no other
+utility library is used, and the tokens are framework-agnostic so adopting Tailwind
+later is additive. Flagged PROPOSED for ratification; say the word and I'll wire
+Tailwind v4 now instead. Fonts are system stacks for now — the specified
+Inter/Plex faces must be self-hosted (no external CDN, PRD §11.2), which is its own
+task. *(Also: integration tests run on in-process Postgres via pglite — a test
+harness running the same SQL, not a production-DB substitution.)*
+
 ## ADR-0011 — Phase 1 build is Slice 1 only; the rest waits on the client · ACCEPTED
 
 Phase 1 delivery is scoped to **Slice 1 — the assignment gate, end to end**
