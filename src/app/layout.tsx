@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { AppNav } from "@/components/app-nav";
 import { TRPCProvider } from "@/trpc/react";
 // Self-hosted fonts (Fontsource) — bundled and served from our own origin, no
 // external CDN (PRD §11.2). Inter (body/UI), Inter Tight (display), IBM Plex Mono.
@@ -29,7 +30,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               GREENSAFE ASSURE
             </span>
           </header>
-          {children}
+          <div className="flex min-h-[calc(100vh-56px)]">
+            <AppNav />
+            <div className="min-w-0 flex-1">{children}</div>
+          </div>
         </TRPCProvider>
       </body>
     </html>
