@@ -264,6 +264,13 @@ policies to bind. Verified on real Postgres 16 as a non-superuser role (deployed
 officer sees only their own record; director sees all). Broader per-module scoping
 (auditors → assigned audits, client tenant isolation) lands with those modules.
 
+**Threading (updated 2026-08-14).** `withActor` is threaded through the
+scope-sensitive **register reads** (`routers/register.ts`), so RLS is a genuine
+second layer there. It is **not yet threaded through every procedure** — the
+remaining read/write procedures run outside `withActor`, where RBAC is the
+(tested) control. Completing global threading is a mechanical pass listed in the
+final report; it is called out here rather than left silent.
+
 ## ADR-0019 — Auth mechanism is email+password+session; Corppass/MFA deferred · PROPOSED · Q-P1-11
 
 Authentication is email + password with an opaque server session
@@ -272,6 +279,28 @@ Authentication is email + password with an opaque server session
 an open question (Q-P1-11). This is marked UNRATIFIED in code. The authorisation
 layer (roles/scope + RLS) is the real, tested control and does not depend on the
 sign-in mechanism, so swapping in Corppass later does not touch it.
+
+## ADR-0020 — Demo-ready posture: adapters, boot guard, security headers · ACCEPTED · 2026-08-14
+
+The final pass takes Phase 1 to **DEMO-READY, not production-ready** (CLAUDE.md).
+Concretely:
+- **Boot guard** (`instrumentation.ts`): the app refuses to start in
+  `NODE_ENV=production` with the dev `GS_DATA_KEY` or no `GS_SESSION_SECRET` —
+  loud failure at boot, not a warning.
+- **Storage** behind an adapter (`storage.ts`): local FS default; S3
+  config-selected and throws without credentials.
+- **Notifications** behind channel-routed adapters: console default, in-app (the
+  bell), email/SMS **stubs that throw** if selected. Nothing can reach a real
+  address.
+- **Security middleware**: CSP/HSTS/X-Frame-Options/Referrer-Policy, same-origin
+  CSRF on mutations, in-memory auth rate limit. CSP `unsafe-inline` and the
+  in-memory limiter are **demo-grade, flagged in code** — production tightens to
+  nonces + a shared store.
+- **Sessions**: rotation on sign-in, sliding idle (2h) capped at absolute (12h).
+- **Demo banner** on every page; all seed data fictional.
+
+None of this is production security; it is honest demo hardening, and the README
+/ RUNBOOK say so plainly.
 
 ## ADR-0011 — Phase 1 build is Slice 1 only; the rest waits on the client · ACCEPTED
 

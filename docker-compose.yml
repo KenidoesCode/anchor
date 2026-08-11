@@ -1,0 +1,40 @@
+# Local demo: Postgres + the app, one command.
+#   docker compose up --build        # start (runs migrations on boot)
+#   docker compose run --rm app pnpm db:seed   # load the fictional demo data (once)
+# Then open http://localhost:3000 and sign in (see DEMO.md).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: greensafe
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/greensafe
+      NODE_ENV: production
+      # Demo values — NOT production keys. The app refuses to start in
+      # production mode with the built-in dev key, so these are provided here.
+      GS_DATA_KEY: ${GS_DATA_KEY:-demo-only-not-a-real-key-change-me}
+      GS_SESSION_SECRET: ${GS_SESSION_SECRET:-demo-only-session-secret-change-me}
+      GS_DEMO_BANNER: "on"
+      STORAGE_ADAPTER: local
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    command: sh -c "pnpm db:migrate && pnpm start"
+
+volumes:
+  pgdata:

@@ -1,135 +1,103 @@
 /**
- * FICTIONAL demonstration data — Greensafe Assure Slice 1.
+ * FICTIONAL demonstration data — Greensafe Assure.
  *
- * Every person, registration number and client below is invented for demos and
- * tests. This file lives under seed/ and must never be reachable from a
- * production code path (CLAUDE.md). Run against a local dev database only:
- *   pnpm db:migrate && pnpm db:seed
+ * Every person, registration number and certification below is invented. Client
+ * organisation names may echo Greensafe's published client list; nothing else is
+ * real. This file lives under seed/ and must never run against a production
+ * database (CLAUDE.md). Local dev only: pnpm db:migrate && pnpm db:seed
  *
- * The cast mirrors UXS §5.3 so the Assign screen shows one of each outcome
- * against a 1 Sep – 31 Dec 2026 deployment: Confirmed, Conditional, Blocked.
+ * The scenario is built to tell the story in sixty seconds (DEMO.md):
+ *   - R. Sundaram — deployed under a LAPSED WSHO (via Director override) → shows on the Overview
+ *   - Mohamed Faizal — WSHO expiring within 30 days → CONDITIONAL deployment + renewal task
+ *   - Ng Siew Ling, K. Rajendran — valid, one deployed
+ *   - Tan Boon Hock — holds only FSM, lacks the required WSHO entirely
+ *   - Populated cascade output (notifications, renewal tasks) and activity log
  */
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/pg";
 import * as s from "@/db/schema";
+import { createAssignment, createOverriddenAssignment } from "@/server/assignment-service";
 import { hashPassword } from "@/server/auth";
 import { installDefaultConfig } from "@/server/default-config";
+import { runEscalationCascade } from "@/server/escalation";
+import { dispatchPending } from "@/server/notifications";
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const addDays = (base: string, n: number) => iso(new Date(Date.parse(`${base}T00:00:00Z`) + n * 86_400_000));
 
 async function main() {
   const db = getDb();
+  const A = s.SYSTEM_ACTOR_ID;
+  const today = iso(new Date());
 
-  const [mom] = await db
-    .insert(s.authority)
-    .values({ code: "MOM", name: "Ministry of Manpower" })
-    .returning({ id: s.authority.id });
-  const [scdf] = await db
-    .insert(s.authority)
-    .values({ code: "SCDF", name: "Singapore Civil Defence Force" })
-    .returning({ id: s.authority.id });
+  await installDefaultConfig(db, A);
 
-  // NOTE: validation_pattern intentionally null — real MOM/SCDF registration
-  // formats are unverified (Q-P1-5). No guessed format is hardcoded.
-  const [wshoType] = await db
-    .insert(s.certificationType)
-    .values({ code: "WSHO", name: "Workplace Safety & Health Officer", authorityId: mom!.id })
-    .returning({ id: s.certificationType.id });
-  const [fsmType] = await db
-    .insert(s.certificationType)
-    .values({ code: "FSM", name: "Fire Safety Manager", authorityId: scdf!.id })
-    .returning({ id: s.certificationType.id });
+  const [mom] = await db.insert(s.authority).values({ code: "MOM", name: "Ministry of Manpower" }).returning({ id: s.authority.id });
+  const [scdf] = await db.insert(s.authority).values({ code: "SCDF", name: "Singapore Civil Defence Force" }).returning({ id: s.authority.id });
 
-  // Roles and their (effective-dated, single-item all_of) requirements.
+  const [wsho] = await db.insert(s.certificationType).values({ code: "WSHO", name: "Workplace Safety & Health Officer", authorityId: mom!.id }).returning({ id: s.certificationType.id });
+  const [fsm] = await db.insert(s.certificationType).values({ code: "FSM", name: "Fire Safety Manager", authorityId: scdf!.id }).returning({ id: s.certificationType.id });
+
   async function roleRequiring(code: string, name: string, typeId: string): Promise<string> {
-    const [role] = await db
-      .insert(s.role)
-      .values({ code, name })
-      .returning({ id: s.role.id });
-    const [rv] = await db
-      .insert(s.roleRequirementVersion)
-      .values({ roleId: role!.id, versionNo: 1, validFrom: "2000-01-01", validTo: null })
-      .returning({ id: s.roleRequirementVersion.id });
-    const [group] = await db
-      .insert(s.requirementGroup)
-      .values({ requirementVersionId: rv!.id, combinator: "all_of", parentGroupId: null })
-      .returning({ id: s.requirementGroup.id });
-    await db
-      .insert(s.requirementItem)
-      .values({ groupId: group!.id, certificationTypeId: typeId });
+    const [role] = await db.insert(s.role).values({ code, name }).returning({ id: s.role.id });
+    const [rv] = await db.insert(s.roleRequirementVersion).values({ roleId: role!.id, versionNo: 1, validFrom: "2000-01-01" }).returning({ id: s.roleRequirementVersion.id });
+    const [g] = await db.insert(s.requirementGroup).values({ requirementVersionId: rv!.id, combinator: "all_of" }).returning({ id: s.requirementGroup.id });
+    await db.insert(s.requirementItem).values({ groupId: g!.id, certificationTypeId: typeId });
     return role!.id;
   }
+  const wshoRoleId = await roleRequiring("WSHO", "Workplace Safety & Health Officer", wsho!.id);
+  await roleRequiring("FSM", "Fire Safety Manager", fsm!.id);
 
-  await roleRequiring("WSHO", "Workplace Safety & Health Officer", wshoType!.id);
-  await roleRequiring("FSM", "Fire Safety Manager", fsmType!.id);
+  const [shimizu] = await db.insert(s.organisation).values({ name: "Shimizu Corporation", sector: "Construction" }).returning({ id: s.organisation.id });
+  const [obayashi] = await db.insert(s.organisation).values({ name: "Obayashi Corporation", sector: "Construction" }).returning({ id: s.organisation.id });
+  const [changi] = await db.insert(s.site).values({ organisationId: shimizu!.id, name: "Changi T5" }).returning({ id: s.site.id });
+  const [marina] = await db.insert(s.site).values({ organisationId: obayashi!.id, name: "Marina South" }).returning({ id: s.site.id });
 
-  // Clients and sites.
-  const [shimizu] = await db
-    .insert(s.organisation)
-    .values({ name: "Shimizu Corporation", sector: "Construction" })
-    .returning({ id: s.organisation.id });
-  const [obayashi] = await db
-    .insert(s.organisation)
-    .values({ name: "Obayashi Corporation", sector: "Construction" })
-    .returning({ id: s.organisation.id });
-  await db.insert(s.site).values({ organisationId: shimizu!.id, name: "Changi T5" });
-  await db.insert(s.site).values({ organisationId: obayashi!.id, name: "Marina South" });
-
-  // People + their certifications (states as of 2026-08-11).
-  async function officer(
-    fullName: string,
-    certs: { typeId: string; reg: string; issue: string; expiry: string }[],
-  ) {
-    const [p] = await db
-      .insert(s.person)
-      .values({ fullName })
-      .returning({ id: s.person.id });
-    for (const c of certs) {
-      await db.insert(s.certification).values({
-        personId: p!.id,
-        certificationTypeId: c.typeId,
-        registrationNumber: c.reg,
-        issueDate: c.issue,
-        expiryDate: c.expiry,
-      });
-    }
+  async function officer(fullName: string, cert: { typeId: string; reg: string; issue: string; expiry: string }): Promise<string> {
+    const [p] = await db.insert(s.person).values({ fullName }).returning({ id: s.person.id });
+    await db.insert(s.certification).values({ personId: p!.id, certificationTypeId: cert.typeId, registrationNumber: cert.reg, issueDate: cert.issue, expiryDate: cert.expiry });
+    return p!.id;
   }
 
-  await officer("Ng Siew Ling", [
-    { typeId: wshoType!.id, reg: "WSHO/26/01204", issue: "2023-03-01", expiry: "2028-02-28" },
-  ]); // Confirmed
-  await officer("K. Rajendran", [
-    { typeId: wshoType!.id, reg: "WSHO/25/00417", issue: "2022-11-14", expiry: "2027-11-14" },
-  ]); // Confirmed
-  await officer("Mohamed Faizal", [
-    { typeId: wshoType!.id, reg: "WSHO/24/07330", issue: "2021-09-28", expiry: "2026-09-28" },
-  ]); // Conditional — expires within the deployment period
-  await officer("Tan Boon Hock", [
-    { typeId: fsmType!.id, reg: "FSM/24/00991", issue: "2022-01-10", expiry: "2027-01-10" },
-  ]); // Blocked — no WSHO
-  await officer("R. Sundaram", [
-    { typeId: wshoType!.id, reg: "WSHO/24/08812", issue: "2021-08-01", expiry: "2026-07-31" },
-  ]); // Blocked — WSHO lapsed
+  const ng = await officer("Ng Siew Ling", { typeId: wsho!.id, reg: "WSHO/26/01204", issue: "2023-03-01", expiry: addDays(today, 900) });
+  await officer("K. Rajendran", { typeId: wsho!.id, reg: "WSHO/25/00417", issue: "2022-11-14", expiry: addDays(today, 460) });
+  const faizal = await officer("Mohamed Faizal", { typeId: wsho!.id, reg: "WSHO/24/07330", issue: "2021-09-28", expiry: addDays(today, 25) });
+  await officer("Tan Boon Hock", { typeId: fsm!.id, reg: "FSM/24/00991", issue: "2022-01-10", expiry: addDays(today, 300) });
+  const sundaram = await officer("R. Sundaram", { typeId: wsho!.id, reg: "WSHO/24/08812", issue: "2021-08-01", expiry: addDays(today, -11) });
 
-  // Default (production-shape) configuration — thresholds/recipients as data.
-  await installDefaultConfig(db, s.SYSTEM_ACTOR_ID);
+  const period = { startDate: addDays(today, -10), endDate: addDays(today, 140) };
+
+  // Confirmed: valid officer deployed.
+  await createAssignment(db, { personId: ng, roleId: wshoRoleId, organisationId: shimizu!.id, siteId: changi!.id, ...period }, A, today);
+
+  // Conditional: expiring officer deployed (cert lapses before the posting ends).
+  await createAssignment(db, { personId: faizal, roleId: wshoRoleId, organisationId: obayashi!.id, siteId: marina!.id, ...period }, A, today);
+
+  // Overridden: lapsed officer deployed under a Director override → shows on the Overview.
+  await createOverriddenAssignment(
+    db,
+    { personId: sundaram, roleId: wshoRoleId, organisationId: shimizu!.id, siteId: changi!.id, ...period },
+    { requestedBy: A, justification: "Emergency cover authorised by Director; renewal already in progress." },
+    A,
+    today,
+  );
+
+  // Run the cascade so certifications, renewals and notifications look inhabited.
+  await runEscalationCascade(db, today, A);
+  await dispatchPending(db);
 
   // FICTIONAL users. Password for every demo account is "greensafe".
   const pw = hashPassword("greensafe");
-  const [sundaram] = await db
-    .select({ id: s.person.id })
-    .from(s.person)
-    .where(eq(s.person.fullName, "R. Sundaram"))
-    .limit(1);
+  const [sPerson] = await db.select({ id: s.person.id }).from(s.person).where(eq(s.person.id, sundaram)).limit(1);
   await db.insert(s.appUser).values([
     { email: "karu@greensafe.test", fullName: "Karu (Director)", role: "director", passwordHash: pw },
     { email: "coord@greensafe.test", fullName: "Deployment Coordinator", role: "deployment_coordinator", passwordHash: pw },
     { email: "trainingadmin@greensafe.test", fullName: "Training Administrator", role: "training_admin", passwordHash: pw },
-    { email: "sundaram@greensafe.test", fullName: "R. Sundaram", role: "deployed_officer", passwordHash: pw, personId: sundaram?.id ?? null },
+    { email: "officer@greensafe.test", fullName: "R. Sundaram", role: "deployed_officer", passwordHash: pw, personId: sPerson?.id ?? null },
   ]);
 
   // eslint-disable-next-line no-console
-  console.log(
-    "Seeded FICTIONAL demo data + config + users (password 'greensafe'). Sign in as coord@greensafe.test to assign.",
-  );
+  console.log("Seeded FICTIONAL demo scenario, config and users (password 'greensafe'). See DEMO.md.");
   process.exit(0);
 }
 

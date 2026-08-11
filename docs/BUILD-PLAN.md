@@ -7,14 +7,16 @@ calendar week). Estimates are deliberately un-flattered — they include tests,
 empty/loading/error states, and the audit/masking obligations that CLAUDE.md's
 Definition of Done requires on every slice.
 
-> **Scope status (updated 2026-08-14).** Slice 1 was built first (ADR-0011);
-> Slices 2–9 were then authorised per-item and built in one pass, sequenced as
-> Group A (structural: auth/RBAC/RLS, CRUD, registers, activity) then Group B
-> (rules layer: cascade, renewals, override, Overview) — with **every Group-B
-> rule as configuration, not constants** (ADR-0017). All of M0+M1 is now built;
-> M2–M6 remain unscaffolded. The domain questions in `docs/OPEN-QUESTIONS.md`
-> are still open — where a slice needed one, the flagged assumption was
-> implemented and marked `ASSUMPTION — UNRATIFIED` in code, never resolved.
+> **Scope status (updated 2026-08-14).** Slice 1 first (ADR-0011); Slices 2–9
+> then built in one pass — Group A (auth/RBAC/RLS, CRUD, registers, activity)
+> then Group B (cascade, renewals, override, Overview), every Group-B rule as
+> configuration (ADR-0017). A final pass then took Phase 1 to **DEMO-READY**
+> (ADR-0020): UI for the API-only flows, file upload, in-app notifications +
+> bell, security hardening, deployability (Docker/compose), and docs. All of
+> M0+M1 is built; M2–M6 remain unscaffolded. **Demo-ready, not production-ready**
+> — KMS, real auth, full RLS threading and the thirteen open questions remain.
+> Where a slice needed an answer, the assumption was implemented and marked
+> `ASSUMPTION — UNRATIFIED` in code, never resolved.
 
 A dependency runs through the whole plan: the schema decisions from
 `docs/SPEC-REVIEW.md` are now **ratified** as ADR-0002/0003/0004/0007/0008/0009 in
