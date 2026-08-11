@@ -111,7 +111,7 @@ Client users are tenant-isolated at the database row level. A defect in applicat
               │ 4. Choose officer   │  list is PRE-FILTERED and pre-sorted:
               │                     │    ✓ certified & available
               │                     │    ▲ certified, expires within period
-              │                     │    ✕ not eligible (shown, greyed, reason on hover)
+              │                     │    ✕ not eligible (shown, greyed, reason inline)
               └─────────┬───────────┘
                         ▼
                  ┌──────────────┐
@@ -121,6 +121,12 @@ Client users are tenant-isolated at the database row level. A defect in applicat
           ▼             ▼             ▼
       BLOCKED      CONDITIONAL     CONFIRMED
 ```
+
+> **Correction (2026-08-11, ratified — see `docs/DECISIONS.md` ADR-0010).** The
+> ineligibility reason for a greyed officer is shown **inline** in the row, never
+> on hover. Hover-only fails WCAG (UXS §9) and does not exist on field tablets.
+> The earlier "reason on hover" wording above was wrong; UXS §5.3 and §9 are
+> correct and govern.
 
 ### 3.1 Outcome logic
 

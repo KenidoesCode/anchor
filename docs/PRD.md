@@ -457,13 +457,20 @@ physically removed inside the statutory retention period.
 | Phase | Scope | Duration | Value delivered |
 |---|---|---|---|
 | **0** | Discovery. Current-state mapping, systems audit, SSG onboarding initiated, security requirements confirmed with key clients | 2–3 weeks | Assumptions closed; grant application evidence assembled |
-| **1** | M0 foundation + M1 Competency & Deployment Register | 8–10 weeks | Certification lapse eliminated as a class of risk |
+| **1** | M0 foundation + M1 Competency & Deployment Register | 8–10 weeks full-time¹ | Certification lapse eliminated as a class of risk |
 | **2** | M2 Training Operations & statutory submission | 10–12 weeks | Grant leakage eliminated; admin re-keying removed |
 | **3** | M3 Audit Platform, offline field capture, evidence integrity | 12–16 weeks | Auditor hours returned to billable work |
 | **4** | M4 Client Record & Commercial Pipeline | 8–10 weeks | Cross-sell and renewal capture |
 | **5** | M5 Consulting Engine, M6 Client Portal, AI layer | 12–16 weeks | Consultant leverage; foundation for a future product |
 
 Phases 1 and 2 are the commercial case. Phases 3 onward are contingent on Phase 1 and 2 outcomes and should be re-scoped against measured results rather than committed in advance.
+
+> ¹ **Estimate basis (corrected 2026-08-11).** The Phase durations above are
+> full-time-equivalent. At the actual staffing of **one developer at ~20 hours a
+> week**, Phase 1 as fully specified is **~23–32 weeks** (2×–3× the full-time
+> figure) — see `docs/BUILD-PLAN.md`. Phase 1 delivery is now scoped to **Slice 1
+> only** (the assignment gate, end to end); the remaining Phase 1 slices are
+> deferred until the client answers `docs/OPEN-QUESTIONS.md` (ADR-0011).
 
 ### 14.1 Funding
 

@@ -8,6 +8,12 @@ still costs an hour to fix rather than a rewrite. Every item cites its section.
 Severity: **B** blocks Phase 1 build · **H** high, decide before the relevant
 slice · **M** medium · **L** low / confirm.
 
+> **Resolution (2026-08-11).** The Directors ratified A1, A2, A3, B1, B2, B3, C1
+> (schema → ADR-0002/0003/0004/0007/0008/0009), D1/D2 (Director Overview → ADR-0006)
+> and D3 (inline reason → ADR-0010, UXF amended). A5 (open-ended deployment) remains
+> a flagged working assumption pending Q-P1-7. See `docs/DECISIONS.md` and
+> `docs/OPEN-QUESTIONS.md`. This document is retained as the original review record.
+
 The specs are unusually good — internally consistent on principle, honest about
 what is unverified (UXS §11, PRD §17), and correct on the things that matter
 (server-side blocks, evidence-closes-loops, status ≠ colour). The findings below

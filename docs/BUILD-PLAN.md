@@ -7,39 +7,55 @@ calendar week). Estimates are deliberately un-flattered — they include tests,
 empty/loading/error states, and the audit/masking obligations that CLAUDE.md's
 Definition of Done requires on every slice.
 
-A dependency runs through the whole plan: the **B-severity schema decisions in
-`docs/SPEC-REVIEW.md` §Summary must be settled before Slice 1 cuts migrations.**
-Slice 1 seeds requirement config; it cannot seed a shape that hasn't been decided.
+> **Scope decision (2026-08-11, ADR-0011).** Only **Slice 1** is committed for
+> Phase 1. Slices 2–9 below are the documented backlog — they are **not built**
+> until the client answers the blocking domain questions in
+> `docs/OPEN-QUESTIONS.md`. Building them now would commit confident work on
+> unvalidated assumptions.
+
+A dependency runs through the whole plan: the schema decisions from
+`docs/SPEC-REVIEW.md` are now **ratified** as ADR-0002/0003/0004/0007/0008/0009 in
+`docs/DECISIONS.md`. Slice 1 seeds requirement config against those shapes — but
+**no migration is cut until the shapes themselves are ratified** (ADR-0011).
 
 ---
 
-## Slice 1 — The assignment gate, end to end (the thin vertical) · **6–8 dev-days**
+## Slice 1 — The assignment gate, end to end (the committed slice) · **6–8 dev-days**
 
 The first slice is the gate and nothing decorative — not a login page, not a
 design system, not scaffolding for its own sake. Just enough app to prove the
-gate returns a real determination from the server.
+gate returns a real determination from the server. **This is the only committed
+Phase-1 slice (ADR-0011).**
 
 **Delivers**
 - Minimal running app: Next.js 15 App Router + tRPC + Drizzle + Postgres 17 (local Docker), one `.env`, one page.
-- Migrations for the gate's minimum: `person`, `authority`, `certification_type` (+ `validation_pattern`, `authority_id`), `certification`, `role`, `role_requirement` (effective-dated, all_of/any_of per SPEC-REVIEW A2/A3/C1), `deployment`. All with audit columns (`created_at/by`, `updated_at/by`, `deleted_at`) from migration one.
-- **One shared Zod schema per concept** (person, certification, deployment input) used by form + tRPC + DB boundary.
-- `deployment.validate` tRPC procedure: pure, deterministic gate function returning **Blocked | Conditional | Confirmed** with a structured reason, evaluated against the live certification ledger and the pinned requirement version. Open-ended deployment ⇒ Confirmed-with-monitoring (A5).
-- `deployment.create` procedure that **re-runs the gate server-side** and rejects Blocked — the server is the control, the button is presentation.
-- UXS §5.3 two-pane Assign screen: pre-filtered/sorted officer selector (✓ / ▲ / ✕ with inline reasons, greyed not hidden), and the three-state validation panel (BLOCKED / CONDITIONAL / CONFIRMED) with the exact copy and the disabled Save + "Blocked — see panel".
+- Migrations for the gate's minimum, against the ratified schema in `docs/DECISIONS.md`: `person` (+ `line_manager_id`, ADR-0009), `organisation` (+ `account_owner_id`) and `site`, `authority`, `certification_type` (+ `validation_pattern`, `authority_id`, nullable `renews_via_course_id`), `certification`, `role`, `role_requirement_version` + `requirement_group` + `requirement_item` (effective-dated AND/OR — ADR-0002/0003), `assignment` (+ `requirement_version_id`, `outcome`, `override_id`) and `deployment` (1:1 to assignment — ADR-0007). All with audit columns (`created_at/by`, `updated_at/by`, `deleted_at`) from migration one. *(`renewal_task` and `escalation_event` exist in the schema but their behaviour is Slice 3/5 — Slice 1 creates no cascade.)*
+- **One shared Zod schema per concept** (person, certification, assignment input) used by form + tRPC + DB boundary.
+- `assignment.validate` tRPC procedure: pure, deterministic gate function returning **Blocked | Conditional | Confirmed** with a structured reason, evaluated against the live certification ledger and the **pinned requirement version** (ADR-0002), with AND/OR requirement evaluation (ADR-0003). Open-ended deployment handled as a clearly-flagged working assumption pending Q-P1-7 (ADR-0005, PROPOSED).
+- `assignment.create` procedure that **re-runs the gate server-side** and rejects Blocked, then writes the `assignment` and its 1:1 `deployment` — the server is the control, the button is presentation.
+- UXS §5.3 two-pane Assign screen: pre-filtered/sorted officer selector (✓ / ▲ / ✕ with **inline** reasons, greyed not hidden — ADR-0010), and the three-state validation panel (BLOCKED / CONDITIONAL / CONFIRMED) with the exact copy and the disabled Save + "Blocked — see panel". Conditional panel omits the M2 course-run line (ADR-0006).
 - `seed/` fictional people + certs (clearly labelled) to demo all three outcomes.
 
 **Files touched (indicative)**
-`drizzle/` migrations + `src/db/schema/*`; `src/lib/gate.ts` (pure logic); `src/schemas/*` (Zod); `src/server/routers/deployment.ts`; `src/app/assign/*` + validation-panel + officer-selector components; `seed/*`; `tests/gate.spec.ts`, `tests/deployment.create.int.test.ts`.
+`drizzle/` migrations + `src/db/schema/*`; `src/lib/gate.ts` (pure logic); `src/schemas/*` (Zod); `src/server/routers/assignment.ts`; `src/app/assign/*` + validation-panel + officer-selector components; `seed/*`; `tests/gate.spec.ts`, `tests/assignment.create.int.test.ts`.
 
 **Tested by**
 - Unit table over the gate function: lapsed → Blocked; missing type → Blocked; expires-before-end → Conditional; valid-throughout → Confirmed; open-ended → Confirmed; boundary dates. (This is the test that matters most — write it first.)
-- Integration: `deployment.create` **rejects a lapsed assignment through the API**, not just the UI (AC1.1). This is the founding acceptance test.
+- Integration: `assignment.create` **rejects a lapsed assignment through the API**, not just the UI (AC1.1). This is the founding acceptance test.
 - One Playwright pass: pick a lapsed officer → panel goes BLOCKED → Save disabled.
 
 **Demo in under a minute**
 Open Assign, pick R. Sundaram (WSHO lapsed) → red BLOCKED panel, Save disabled. Switch to Ng Siew Ling → green CONFIRMED, Save enabled, save succeeds. Then `curl` the create endpoint with the lapsed officer → server 4xx. The gate is real on both surfaces.
 
 ---
+
+---
+
+# Deferred backlog — Slices 2–9 (NOT built in Phase 1; ADR-0011)
+
+The slices below are retained as the sequenced backlog for when the client has
+answered `docs/OPEN-QUESTIONS.md`. None is committed now. They are unchanged from
+the first-session plan except where a ratified ADR is noted.
 
 ## Slice 2 — Identity, RBAC, scope, RLS, event log (the M0 spine) · **7–9 dev-days**
 
@@ -138,18 +154,17 @@ stub caller context; this slice makes *who may call* real.
 
 **In calendar time at 20 h/week (~2.5 dev-days/week): roughly 23–32 weeks.**
 
-This is deliberately not flattered, and it is *longer* than the PRD's "8–10 weeks"
-for Phase 1 (PRD §14) — because that figure reads as full-time. At half-time,
-Phase 1 as specified is about **6–8 months**. The honest recommendation from the
-kickoff holds: **build Slice 1 only** — the gate, working end to end, on real
-schema — and take that to the Greensafe workshop. It proves the founding
-requirement (O1, AC1.1) at a fraction of the cost and leaves room to change
-direction once the open questions are answered. Slices 2–9 should be committed
-against measured discovery, not built speculatively.
+The **~58–80 dev-days (≈ 23–32 weeks at 20 h/week)** figure is the full Phase-1
+scope and is accepted as the honest number; the PRD §14 "8–10 weeks" has been
+corrected to note it is full-time-equivalent. **Committed scope is Slice 1 only
+(ADR-0011)** — the gate, working end to end, demonstrable in under a minute and
+defensible under questioning. It proves the founding requirement (O1, AC1.1) at a
+fraction of the cost. Slices 2–9 are the deferred backlog above and are committed
+only against answered open questions, not built speculatively.
 
 ## Sequencing notes
 
 - **Gate before everything.** Slice 1 is the founding requirement (CLAUDE.md); if it isn't real, nothing else matters.
 - **Auth (Slice 2) is second, not first.** Slice 1 proves the *rule* server-side with a stub context; Slice 2 proves *who may call*. Splitting them keeps Slice 1 to the gate.
-- The **B-severity schema decisions** (SPEC-REVIEW §Summary) are prerequisites to Slice 1's migration, not a later slice.
+- The schema decisions (now ADR-0002/0003/0004/0007/0008/0009) are prerequisites to Slice 1's migration; migrations wait on their final ratification (ADR-0011).
 - Tests-alongside is not optional: the gate and authorisation tests (AC1.1, RLS) are written **before** their UI, per CLAUDE.md.
