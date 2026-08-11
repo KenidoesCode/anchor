@@ -7,11 +7,14 @@ calendar week). Estimates are deliberately un-flattered — they include tests,
 empty/loading/error states, and the audit/masking obligations that CLAUDE.md's
 Definition of Done requires on every slice.
 
-> **Scope decision (2026-08-11, ADR-0011).** Only **Slice 1** is committed for
-> Phase 1. Slices 2–9 below are the documented backlog — they are **not built**
-> until the client answers the blocking domain questions in
-> `docs/OPEN-QUESTIONS.md`. Building them now would commit confident work on
-> unvalidated assumptions.
+> **Scope status (updated 2026-08-14).** Slice 1 was built first (ADR-0011);
+> Slices 2–9 were then authorised per-item and built in one pass, sequenced as
+> Group A (structural: auth/RBAC/RLS, CRUD, registers, activity) then Group B
+> (rules layer: cascade, renewals, override, Overview) — with **every Group-B
+> rule as configuration, not constants** (ADR-0017). All of M0+M1 is now built;
+> M2–M6 remain unscaffolded. The domain questions in `docs/OPEN-QUESTIONS.md`
+> are still open — where a slice needed one, the flagged assumption was
+> implemented and marked `ASSUMPTION — UNRATIFIED` in code, never resolved.
 
 A dependency runs through the whole plan: the schema decisions from
 `docs/SPEC-REVIEW.md` are now **ratified** as ADR-0002/0003/0004/0007/0008/0009 in
