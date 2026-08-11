@@ -206,6 +206,16 @@ reason a greyed officer is ineligible is shown **inline** in the row (UXS §5.3)
 never on hover: hover-only fails WCAG (UXS §9) and does not exist on the field
 tablets. UXS §5.3 and §9 govern.
 
+## ADR-0014 — Overlap is a hard block; intervals are inclusive · ACCEPTED (KK) · 2026-08-14
+
+Any date overlap between a candidate and an existing active deployment for the
+same person is an **unconditional block** (UXF §3.1), and intervals are treated as
+**inclusive** (a posting ending 31 Aug and one starting 31 Aug overlap). Ratified
+as correct. It remains a **domain fact for Greensafe to confirm** (Q-P1-8) —
+concurrent/part-time postings may legitimately exist — so both the rule and its
+inclusivity are flagged in code (`gate.ts`, `assignment-service.ts`) and kept open
+in `OPEN-QUESTIONS.md`. Ratification by KK ≠ confirmation by Greensafe.
+
 ## ADR-0012 — Slice 1 UI uses plain CSS tokens; Tailwind/shadcn deferred to Slice 4 · PROPOSED
 
 The design tokens (PRD §11) are implemented as CSS custom properties in one place
@@ -230,7 +240,10 @@ blocking domain questions in `docs/OPEN-QUESTIONS.md`. Building them now would b
 committing confident work on unvalidated assumptions.
 
 **Gate before this session proceeds:** no migration is cut until the schema shapes
-in ADR-0002/0003/0004/0007/0008/0009 are ratified.
+in ADR-0002/0003/0004/0007/0008/0009 are ratified. *(Update 2026-08-14: the shapes
+were printed for review and ratified per-item by ADR number; migrations then cut.
+Standing rule now in force — ratification is explicit, per-item, by ADR number;
+"continue"/"go ahead" is conversation, not authorisation.)*
 
 ---
 
@@ -242,5 +255,17 @@ When a deployment has no end date, the recommendation is that a valid certificat
 today yields **Confirmed** (the cascade owns the future expiry), never a perpetual
 Conditional — avoiding an undefined "expires before deployment ends" comparison
 against a null end. **Not ratified:** it depends on the domain fact of whether
-Greensafe's postings are commonly open-ended (Q-P1-7). Slice 1 will treat this as a
-flagged working assumption in the gate logic, clearly marked, pending the answer.
+Greensafe's postings are commonly open-ended (Q-P1-7). The behaviour ships but is
+marked in the code itself — `ASSUMPTION — UNRATIFIED — pending Q-P1-7` at
+`gate.ts` (the `coversThroughEnd`/`monitored` sites) and `validation-panel.tsx` —
+not only here, so a cold reader of the gate sees it is unsettled.
+
+## ADR-0015 — Requirement version resolved as-of server-clock-today · PROPOSED · Q-P1-14
+
+The gate resolves the in-force requirement version using **today** (server clock),
+not the deployment's **start date**. A posting starting in three weeks is therefore
+validated against today's requirements, not the ones in force then. This is very
+likely wrong — KK's instinct is that a future posting should be validated against
+the requirements in force at its start — but the behaviour is **left unchanged
+pending Greensafe's answer** (Q-P1-14) rather than guessed. Flagged in code at
+`assignment-service.ts::runGate` and `requirement.ts::resolveRequirement`.

@@ -135,6 +135,10 @@ function evaluateItem(
   // Best cert wins: covers-through-end > valid-at-start-but-expiring > lapsed.
   const validAtStart = (c: HeldCertification) =>
     c.issueDate <= deploymentStart && c.expiryDate >= deploymentStart;
+  // ASSUMPTION — UNRATIFIED — pending Q-P1-7 (ADR-0005): an open-ended posting
+  // (deploymentEnd === null) with a currently-valid cert is treated as fully
+  // COVERED (⇒ Confirmed-with-monitoring), not Conditional. Greensafe has not
+  // confirmed that open-ended postings exist or that this is the right rule.
   const coversThroughEnd = (c: HeldCertification) =>
     validAtStart(c) && (deploymentEnd === null || c.expiryDate >= deploymentEnd);
 
@@ -226,7 +230,10 @@ function evaluateNode(node: RequirementNode, input: GateInput): NodeResult {
 /* ------------------------------------------------------------- the gate --- */
 
 export function evaluateGate(input: GateInput): GateResult {
-  // Overlap is an unconditional block (UXF §3.1), evaluated regardless of certs.
+  // RATIFIED (KK, 2026-08-14) — pending Greensafe domain confirmation Q-P1-8:
+  // ANY date overlap with an existing deployment is an unconditional block
+  // (UXF §3.1), and intervals are inclusive (touching endpoints overlap). Kept
+  // as a domain fact for Greensafe to confirm — concurrent postings may be real.
   const overlaps = input.overlappingDeployments.map<GateReason>((d) => ({
     code: "overlap",
     message: `Already deployed to ${d.siteName} as ${d.roleCode} (${formatDate(
@@ -248,6 +255,9 @@ export function evaluateGate(input: GateInput): GateResult {
 
   return {
     outcome,
+    // ASSUMPTION — UNRATIFIED — pending Q-P1-7 (ADR-0005): `monitored` is set
+    // purely from the open-ended-posting assumption above. If Greensafe rejects
+    // that rule, this flag and the "Confirmed-with-monitoring" path change.
     monitored: coverage === "covered" && input.deploymentEnd === null,
     requirementVersionId: input.requirementVersionId,
     reasons,

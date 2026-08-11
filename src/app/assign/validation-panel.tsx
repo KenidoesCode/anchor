@@ -81,6 +81,9 @@ export function ValidationPanel({ result, loading, officerName }: Props) {
       {result.reasons.map((r, i) => (
         <p key={i}>{r.message}</p>
       ))}
+      {/* ASSUMPTION — UNRATIFIED — pending Q-P1-7 (ADR-0005): this
+          Confirmed-with-monitoring copy only appears because of the open-ended
+          rule in gate.ts, which Greensafe has not confirmed. */}
       {result.monitored && <p>Open-ended posting — expiry will be monitored by the renewal cascade.</p>}
     </section>
   );

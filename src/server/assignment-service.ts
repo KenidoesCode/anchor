@@ -10,7 +10,11 @@ import {
 import type { AssignmentInput } from "@/schemas/assignment";
 import { resolveRequirement } from "./requirement";
 
-/** Two ISO date intervals overlap; a null end means open-ended (infinite). */
+/**
+ * Two ISO date intervals overlap; a null end means open-ended (infinite).
+ * RATIFIED (KK, 2026-08-14) — pending Greensafe domain confirmation Q-P1-8:
+ * inclusive bounds (touching intervals count as overlapping).
+ */
 function intervalsOverlap(
   aStart: string,
   aEnd: string | null,
@@ -94,6 +98,11 @@ export interface GateQuery {
  * control (`assignment.create`).
  */
 export async function runGate(db: Db, q: GateQuery, now: string): Promise<GateResult> {
+  // ASSUMPTION — UNRATIFIED — pending Q-P1-14 (ADR-0015): the requirement
+  // version is resolved as-of `now` (server-clock today), not as-of the
+  // posting's start date. A deployment starting in three weeks is therefore
+  // validated against today's requirements, not the ones in force then.
+  // Behaviour deliberately left unchanged pending Greensafe's answer.
   const resolved = await resolveRequirement(db, q.roleId, now);
   if (!resolved) return NO_REQUIREMENT("");
 

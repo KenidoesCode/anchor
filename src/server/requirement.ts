@@ -12,6 +12,9 @@ export interface ResolvedRequirement {
  * Resolve the requirement version in force for a role on `asOf`, and build its
  * AND/OR node tree (ADR-0002 effective-dating, ADR-0003 composition).
  * Returns null if the role has no requirement configured for that date.
+ *
+ * NOTE: callers currently pass server-clock today as `asOf`. Whether that is
+ * correct (vs the deployment's start date) is UNRATIFIED — see Q-P1-14 / ADR-0015.
  */
 export async function resolveRequirement(
   db: Db,
