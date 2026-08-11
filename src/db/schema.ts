@@ -463,5 +463,7 @@ export const notification = pgTable("notification", {
   relatedId: uuid("related_id"),
   status: deliveryOutcome("status").notNull().default("pending"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
+  // In-app read state — the bell reads unread rows addressed to the viewer.
+  readAt: timestamp("read_at", { withTimezone: true }),
   ...audit,
 });

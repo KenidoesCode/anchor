@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AppNav } from "@/components/app-nav";
+import { NotificationBell } from "@/components/notification-bell";
 import { TRPCProvider } from "@/trpc/react";
 // Self-hosted fonts (Fontsource) — bundled and served from our own origin, no
 // external CDN (PRD §11.2). Inter (body/UI), Inter Tight (display), IBM Plex Mono.
@@ -37,6 +38,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <span className="ml-10 font-display font-semibold tracking-wide text-gs-navy">
               GREENSAFE ASSURE
             </span>
+            <div className="ml-auto">
+              <NotificationBell />
+            </div>
           </header>
           <div className="flex min-h-[calc(100vh-56px)]">
             <AppNav />

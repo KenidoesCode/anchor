@@ -1,6 +1,7 @@
 import { adminRouter } from "./routers/admin";
 import { assignmentRouter } from "./routers/assignment";
 import { catalogueRouter } from "./routers/catalogue";
+import { notificationsRouter } from "./routers/notifications";
 import { officersRouter } from "./routers/officers";
 import { overrideRouter } from "./routers/override";
 import { overviewRouter } from "./routers/overview";
@@ -22,6 +23,7 @@ export const appRouter = router({
   register: registerRouter,
   person: personRouter,
   admin: adminRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -28,10 +28,41 @@ export const consoleAdapter: NotificationAdapter = {
   },
 };
 
+/** In-app: no external send — the row is read by the bell (routers/notifications). */
+export const inAppAdapter: NotificationAdapter = {
+  async send() {
+    /* no-op: visibility is the notification row itself */
+  },
+};
+
+/** Stubs that throw clearly if selected without credentials. Never wired to real providers. */
+export const emailStubAdapter: NotificationAdapter = {
+  async send() {
+    throw new Error("Email channel selected but no provider is configured (SES not wired). Demo build.");
+  },
+};
+export const smsStubAdapter: NotificationAdapter = {
+  async send() {
+    throw new Error("SMS channel selected but no provider is configured (Twilio not wired). Demo build.");
+  },
+};
+
+/**
+ * Resolve the adapter for a channel. Default is console (demo-safe: nothing is
+ * sent, nothing fails). Email/SMS route to their stubs ONLY when explicitly
+ * config-selected (GS_NOTIFY_EMAIL=stub / GS_NOTIFY_SMS=stub), which then throw.
+ */
+export function adapterForChannel(channel: string): NotificationAdapter {
+  if (channel === "in_app") return inAppAdapter;
+  if (channel === "email" && process.env.GS_NOTIFY_EMAIL === "stub") return emailStubAdapter;
+  if (channel === "sms" && process.env.GS_NOTIFY_SMS === "stub") return smsStubAdapter;
+  return consoleAdapter;
+}
+
 /** Dispatch all pending notifications through the given adapter (console by default). */
 export async function dispatchPending(
   db: Db,
-  adapter: NotificationAdapter = consoleAdapter,
+  adapter?: NotificationAdapter,
   now = new Date(),
 ): Promise<number> {
   const pending = await db
@@ -40,7 +71,8 @@ export async function dispatchPending(
     .where(eq(s.notification.status, "pending"));
   for (const n of pending) {
     try {
-      await adapter.send({
+      // Route by the row's channel unless an explicit adapter is injected (tests).
+      await (adapter ?? adapterForChannel(n.channel)).send({
         channel: n.channel,
         recipientId: n.recipientId,
         recipientRole: n.recipientRole,

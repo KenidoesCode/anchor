@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createRateLimiter } from "@/server/rate-limit";
 
 /**
  * Security middleware: response headers, same-origin CSRF protection on
@@ -11,18 +12,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * production. Both are flagged, not hidden.
  */
 
-const RATE_LIMIT = { windowMs: 60_000, max: 10 };
-const hits = new Map<string, { count: number; resetAt: number }>();
-
-function rateLimited(key: string, now: number): boolean {
-  const rec = hits.get(key);
-  if (!rec || now > rec.resetAt) {
-    hits.set(key, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
-    return false;
-  }
-  rec.count += 1;
-  return rec.count > RATE_LIMIT.max;
-}
+const rateLimited = createRateLimiter({ windowMs: 60_000, max: 10 });
 
 function securityHeaders(res: NextResponse): NextResponse {
   res.headers.set(
