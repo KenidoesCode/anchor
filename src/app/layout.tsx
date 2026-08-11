@@ -21,6 +21,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en-SG">
       <body>
         <TRPCProvider>
+          {process.env.GS_DEMO_BANNER !== "off" && (
+            <div
+              role="note"
+              className="bg-state-warning/10 px-6 py-1.5 text-center text-xs font-semibold text-state-warning"
+            >
+              Demonstration environment — all data is fictional
+            </div>
+          )}
           <header className="flex h-14 items-center gap-3 border-b border-rule bg-surface px-6">
             <span
               aria-hidden="true"

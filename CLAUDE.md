@@ -128,3 +128,37 @@ A change is done when: it typechecks strict, tests pass, authorisation is
 enforced server-side and tested, audit columns are populated, personal data
 is masked, empty/loading/error states exist per UXS, it is keyboard
 operable with visible focus, and the copy matches UXS §7.
+
+## Final pass — demo readiness
+
+The build is completing Phase 1 to DEMO-READY, not PRODUCTION-READY.
+
+Demo-ready means: every Phase 1 screen exists and is navigable, all data is
+enterable through the interface rather than the API, the app is deployable
+by one command, and it holds together under someone clicking around
+unsupervised without hitting a dead end or an unhandled error.
+
+It does NOT mean production-ready. The following are deliberately incomplete
+and must NEVER be described as finished, in code comments, in the README, or
+in any report:
+
+- Encryption uses a development key. KMS is not wired.
+- Notifications write to an outbox and a console adapter. Nothing is sent.
+- Authentication is email and password. Corppass and MFA are not implemented.
+- Row-level security policies exist and are proven, but are not threaded
+  through every request path. RBAC is the primary tested control.
+- Thirteen domain questions in OPEN-QUESTIONS.md remain unanswered. Every
+  dependent behaviour is a flagged assumption.
+
+Never state or imply readiness the build does not have. If a summary would
+overstate maturity, understate it instead.
+
+## Demo data
+
+All seed data is fictional and must be labelled as such in the interface
+itself — a persistent banner reading "Demonstration environment — all data
+is fictional" on every page. Client site names may reference organisations
+from Greensafe's published client list; every person, registration number
+and certification is invented.
+
+Never load seed data into an environment flagged as production.

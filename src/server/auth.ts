@@ -12,7 +12,8 @@ import * as s from "@/db/schema";
  */
 
 export const SESSION_COOKIE = "gs_session";
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const IDLE_MS = 2 * 60 * 60 * 1000; // sliding idle expiry
+const ABSOLUTE_MS = 12 * 60 * 60 * 1000; // hard cap from creation
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -57,11 +58,13 @@ export async function authenticate(
 }
 
 export async function createSession(db: Db, userId: string, now = new Date()): Promise<string> {
+  // A fresh token each sign-in = session rotation.
   const token = randomBytes(32).toString("hex");
   await db.insert(s.session).values({
     id: token,
     userId,
-    expiresAt: new Date(now.getTime() + SESSION_TTL_MS),
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + IDLE_MS),
   });
   return token;
 }
@@ -79,19 +82,31 @@ export async function resolveSession(
       fullName: s.appUser.fullName,
       role: s.appUser.role,
       personId: s.appUser.personId,
+      createdAt: s.session.createdAt,
+      expiresAt: s.session.expiresAt,
     })
     .from(s.session)
     .innerJoin(s.appUser, eq(s.session.userId, s.appUser.id))
     .where(
       and(
         eq(s.session.id, token),
-        gt(s.session.expiresAt, now),
+        gt(s.session.expiresAt, now), // idle deadline not yet passed
         eq(s.appUser.active, true),
         isNull(s.appUser.deletedAt),
       ),
     )
     .limit(1);
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+
+  // Slide the idle deadline forward, capped at the absolute lifetime.
+  const cap = row.createdAt.getTime() + ABSOLUTE_MS;
+  const nextDeadline = Math.min(now.getTime() + IDLE_MS, cap);
+  if (nextDeadline > row.expiresAt.getTime() + 30_000) {
+    await db.update(s.session).set({ expiresAt: new Date(nextDeadline) }).where(eq(s.session.id, token));
+  }
+
+  return { id: row.id, email: row.email, fullName: row.fullName, role: row.role, personId: row.personId };
 }
 
 export async function destroySession(db: Db, token: string | undefined): Promise<void> {
