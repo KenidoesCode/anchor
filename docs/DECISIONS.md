@@ -233,6 +233,46 @@ not a production-DB substitution.
 *(ADR-0012 withdrawn 2026-08-14: not ratified; a decided-stack choice must not be
 deferred unilaterally.)*
 
+---
+
+# Platform decisions (Slices 2+)
+
+## ADR-0017 — Group-B rules are configuration, not constants · ACCEPTED · 2026-08-14
+
+Every threshold, interval, recipient and rule switch in the rules layer lives as
+**data**, read through `src/server/config.ts` — never a constant in application
+logic. `escalation_stage_config` holds the 90/60/30/7/expiry stages, each stage's
+`notify_target` and `channel`; `app_setting` holds scalar switches
+(`gate.overlapEnabled`, `gate.overlapInclusive`, `gate.resolveAsOf`,
+`escalation.directorFallback`). Defaults ship via `installDefaultConfig`
+(production-shape, idempotent — not fictional seed). Tests read the config and
+assert against it rather than hardcoding expected numbers, so "Greensafe changes
+every one of these" is a data edit, not a code change. Proven by
+`tests/config-driven.test.ts` (overlap on/off, inclusivity, resolve-as-of all
+flip behaviour via config with no code change).
+
+## ADR-0018 — Row-level security is the enforced second layer · ACCEPTED · 2026-08-14
+
+Server-side RBAC (`protectedProcedure` / `roleProcedure`, UXF §2.1) is the primary
+control. Postgres RLS (migration 0003) is the second layer: policies on `person`
+and `certification` restrict a `deployed_officer`/`client_user` to their own rows,
+keyed to session GUCs set per-transaction by `withActor` (`src/server/rls.ts`).
+Policies are permissive when the GUC is unset (so an un-scoped connection is not
+silently blanked) and restrict only when a scoped role is present; RLS is not
+FORCEd, so production must connect as a **non-owner application role** for the
+policies to bind. Verified on real Postgres 16 as a non-superuser role (deployed
+officer sees only their own record; director sees all). Broader per-module scoping
+(auditors → assigned audits, client tenant isolation) lands with those modules.
+
+## ADR-0019 — Auth mechanism is email+password+session; Corppass/MFA deferred · PROPOSED · Q-P1-11
+
+Authentication is email + password with an opaque server session
+(`src/server/auth.ts`). Corppass/Singpass OIDC and mandatory MFA (PRD §10.1) are
+**not wired** — no external IdP exists in this environment, and the mechanism is
+an open question (Q-P1-11). This is marked UNRATIFIED in code. The authorisation
+layer (roles/scope + RLS) is the real, tested control and does not depend on the
+sign-in mechanism, so swapping in Corppass later does not touch it.
+
 ## ADR-0011 — Phase 1 build is Slice 1 only; the rest waits on the client · ACCEPTED
 
 Phase 1 delivery is scoped to **Slice 1 — the assignment gate, end to end**

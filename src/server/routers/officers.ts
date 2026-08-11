@@ -4,7 +4,7 @@ import * as s from "@/db/schema";
 import type { GateOutcome } from "@/domain/gate";
 import { isoDate } from "@/schemas/assignment";
 import { runGate } from "../assignment-service";
-import { publicProcedure, router } from "../trpc";
+import { protectedProcedure, router } from "../trpc";
 
 /** Sort so eligible officers surface first; ineligible shown, greyed (UXF §3, UXS §5.3). */
 const order: Record<GateOutcome, number> = { confirmed: 0, conditional: 1, blocked: 2 };
@@ -15,7 +15,7 @@ export const officersRouter = router({
    * Ineligible officers are returned too (greyed, with the reason inline —
    * ADR-0010), never hidden: the coordinator must see who was considered and why.
    */
-  forAssignment: publicProcedure
+  forAssignment: protectedProcedure
     .input(
       z.object({
         roleId: z.string().uuid(),

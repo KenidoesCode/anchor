@@ -26,6 +26,7 @@ import {
   check,
   date,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -91,6 +92,27 @@ export const renewalStatus = pgEnum("renewal_status", ["open", "closed"]);
 export const overrideStatus = pgEnum("override_status", ["open", "resolved"]);
 export const historyOperation = pgEnum("history_operation", ["insert", "update", "delete"]);
 
+/** Roles enforced server-side (UXF §2). */
+export const userRole = pgEnum("user_role", [
+  "director",
+  "deployment_coordinator",
+  "lead_auditor",
+  "auditor",
+  "training_admin",
+  "trainer",
+  "qehs_consultant",
+  "finance",
+  "deployed_officer",
+  "client_user",
+]);
+/** Who an escalation stage notifies (config-driven, ADR-0017). */
+export const notifyTarget = pgEnum("notify_target", [
+  "holder",
+  "line_manager",
+  "account_owner",
+  "director",
+]);
+
 /* ------------------------------------------------------------- people ----- */
 
 export const person = pgTable("person", {
@@ -102,8 +124,10 @@ export const person = pgTable("person", {
   // ADR-0009: escalation 60-day recipient; nullable, Director fallback. Real FK.
   lineManagerId: uuid("line_manager_id").references((): AnyPgColumn => person.id),
   // National identifier: envelope-encrypted + masked by default (PRD §10.2).
-  // Slice 3 owns encryption/masking; Slice 1 never populates or returns this.
+  // Ciphertext never leaves the server; `nationalIdLast4` backs the masked
+  // display (e.g. "S••••567A"). Unmasking is a separate, logged procedure.
   nationalIdCiphertext: text("national_id_ciphertext"),
+  nationalIdLast4: text("national_id_last4"),
   ...audit,
 });
 
@@ -161,6 +185,9 @@ export const certification = pgTable("certification", {
   issueDate: date("issue_date", { mode: "string" }).notNull(),
   expiryDate: date("expiry_date", { mode: "string" }).notNull(),
   scopeLimitations: text("scope_limitations"),
+  // Scanned certificate (AC1.3). Object-storage key + original filename.
+  documentKey: text("document_key"),
+  documentFilename: text("document_filename"),
   // ADR-0008: a renewal supersedes; the old row is retained (soft-deleted). Real FK.
   supersedesCertificationId: uuid("supersedes_certification_id").references(
     (): AnyPgColumn => certification.id,
@@ -374,4 +401,67 @@ export const eventLog = pgTable("event_log", {
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   // Append-only: no updated/deleted columns by design.
   immutable: boolean("immutable").notNull().default(true),
+});
+
+/* --------------------------------------------------- identity (Slice 2) --- */
+
+export const appUser = pgTable("app_user", {
+  id: pk(),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  role: userRole("role").notNull(),
+  // Staff users may be linked to their personnel record.
+  personId: uuid("person_id").references(() => person.id),
+  // Dev credential only. Real auth (Corppass/Singpass or email+MFA) is Q-P1-11.
+  passwordHash: text("password_hash"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const session = pgTable("session", {
+  id: text("id").primaryKey(), // opaque random token, stored in an httpOnly cookie
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => appUser.id),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* -------------------------------------------- configuration (ADR-0017) ---- */
+/* Group-B rules live here as DATA, not constants: thresholds, recipients,     */
+/* and scalar rule switches. Changing a number is an UPDATE, not a deploy.     */
+
+export const appSetting = pgTable("app_setting", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  description: text("description"),
+  ...audit,
+});
+
+export const escalationStageConfig = pgTable("escalation_stage_config", {
+  id: pk(),
+  stageKey: text("stage_key").notNull().unique(), // maps to escalation_stage enum
+  daysBefore: integer("days_before").notNull(), // 90, 60, 30, 7, 0 (expiry)
+  notifyTarget: notifyTarget("notify_target").notNull(),
+  channel: notificationChannel("channel").notNull(),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...audit,
+});
+
+/* --------------------------------------------- notification outbox -------- */
+/* Dispatch is adapter-based; Slice 5 ships a console/log adapter only.        */
+
+export const notification = pgTable("notification", {
+  id: pk(),
+  recipientId: uuid("recipient_id").references(() => person.id),
+  recipientRole: text("recipient_role"),
+  channel: notificationChannel("channel").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  relatedEntity: text("related_entity"),
+  relatedId: uuid("related_id"),
+  status: deliveryOutcome("status").notNull().default("pending"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  ...audit,
 });

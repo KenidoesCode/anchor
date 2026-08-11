@@ -8,22 +8,26 @@ import {
   type OverlappingDeployment,
 } from "@/domain/gate";
 import type { AssignmentInput } from "@/schemas/assignment";
+import { getGateConfig } from "./config";
 import { resolveRequirement } from "./requirement";
 
 /**
  * Two ISO date intervals overlap; a null end means open-ended (infinite).
- * RATIFIED (KK, 2026-08-14) — pending Greensafe domain confirmation Q-P1-8:
- * inclusive bounds (touching intervals count as overlapping).
+ * RATIFIED (KK, 2026-08-14) — pending Greensafe domain confirmation Q-P1-8.
+ * Whether overlap is checked at all, and whether bounds are inclusive, are
+ * CONFIG (ADR-0017: `gate.overlapEnabled`, `gate.overlapInclusive`) — not
+ * constants — so Greensafe can change the rule without a code change.
  */
 function intervalsOverlap(
   aStart: string,
   aEnd: string | null,
   bStart: string,
   bEnd: string | null,
+  inclusive: boolean,
 ): boolean {
   const aE = aEnd ?? "9999-12-31";
   const bE = bEnd ?? "9999-12-31";
-  return aStart <= bE && bStart <= aE;
+  return inclusive ? aStart <= bE && bStart <= aE : aStart < bE && bStart < aE;
 }
 
 async function heldCertifications(db: Db, personId: string): Promise<HeldCertification[]> {
@@ -49,7 +53,9 @@ async function overlappingDeployments(
   personId: string,
   start: string,
   end: string | null,
+  cfg: { overlapEnabled: boolean; overlapInclusive: boolean },
 ): Promise<OverlappingDeployment[]> {
+  if (!cfg.overlapEnabled) return [];
   const rows = await db
     .select({
       siteName: s.site.name,
@@ -68,7 +74,9 @@ async function overlappingDeployments(
         isNull(s.deployment.deletedAt),
       ),
     );
-  return rows.filter((r) => intervalsOverlap(r.startDate, r.endDate, start, end));
+  return rows.filter((r) =>
+    intervalsOverlap(r.startDate, r.endDate, start, end, cfg.overlapInclusive),
+  );
 }
 
 const NO_REQUIREMENT: (versionId: string) => GateResult = (versionId) => ({
@@ -98,17 +106,21 @@ export interface GateQuery {
  * control (`assignment.create`).
  */
 export async function runGate(db: Db, q: GateQuery, now: string): Promise<GateResult> {
-  // ASSUMPTION — UNRATIFIED — pending Q-P1-14 (ADR-0015): the requirement
-  // version is resolved as-of `now` (server-clock today), not as-of the
-  // posting's start date. A deployment starting in three weeks is therefore
-  // validated against today's requirements, not the ones in force then.
-  // Behaviour deliberately left unchanged pending Greensafe's answer.
-  const resolved = await resolveRequirement(db, q.roleId, now);
+  const cfg = await getGateConfig(db);
+
+  // ASSUMPTION — UNRATIFIED — pending Q-P1-14 (ADR-0015): which date the
+  // requirement version is resolved against. The default is 'today' (server
+  // clock); 'deployment_start' is available in config but not the default.
+  // The behaviour is now DATA (gate.resolveAsOf) rather than a constant, so
+  // Greensafe can switch it without a code change — but the DEFAULT is the
+  // unratified assumption and stays 'today' pending their answer.
+  const asOf = cfg.resolveAsOf === "deployment_start" ? q.startDate : now;
+  const resolved = await resolveRequirement(db, q.roleId, asOf);
   if (!resolved) return NO_REQUIREMENT("");
 
   const [held, overlaps] = await Promise.all([
     heldCertifications(db, q.personId),
-    overlappingDeployments(db, q.personId, q.startDate, q.endDate),
+    overlappingDeployments(db, q.personId, q.startDate, q.endDate, cfg),
   ]);
 
   return evaluateGate({

@@ -1,10 +1,10 @@
 import { asc, eq, isNull } from "drizzle-orm";
 import * as s from "@/db/schema";
-import { publicProcedure, router } from "../trpc";
+import { protectedProcedure, router } from "../trpc";
 
 /** Reference lists for the Assign form. Read-only. */
 export const catalogueRouter = router({
-  roles: publicProcedure.query(({ ctx }) =>
+  roles: protectedProcedure.query(({ ctx }) =>
     ctx.db
       .select({ id: s.role.id, code: s.role.code, name: s.role.name })
       .from(s.role)
@@ -12,7 +12,7 @@ export const catalogueRouter = router({
       .orderBy(asc(s.role.code)),
   ),
 
-  sites: publicProcedure.query(({ ctx }) =>
+  sites: protectedProcedure.query(({ ctx }) =>
     ctx.db
       .select({
         id: s.site.id,

@@ -1,21 +1,31 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { getDb } from "@/db/pg";
-import { SYSTEM_ACTOR_ID } from "@/db/schema";
+import { resolveSession, SESSION_COOKIE } from "@/server/auth";
 import { appRouter } from "@/server/root";
 
-// Slice 1 uses a fixed system actor; real identity/RBAC is Slice 2 (ADR-0011).
-// `today` is read from the clock here, at the boundary — the gate itself stays
-// pure and receives it via context.
-const handler = (req: Request) =>
-  fetchRequestHandler({
+function readCookie(req: Request, name: string): string | undefined {
+  const header = req.headers.get("cookie");
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(v.join("="));
+  }
+  return undefined;
+}
+
+const handler = async (req: Request) => {
+  const db = getDb();
+  const user = await resolveSession(db, readCookie(req, SESSION_COOKIE));
+  return fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
     router: appRouter,
     createContext: () => ({
-      db: getDb(),
-      actorId: SYSTEM_ACTOR_ID,
+      db,
+      user,
       today: new Date().toISOString().slice(0, 10),
     }),
   });
+};
 
 export { handler as GET, handler as POST };

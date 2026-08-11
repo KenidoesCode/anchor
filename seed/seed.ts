@@ -9,8 +9,11 @@
  * The cast mirrors UXS §5.3 so the Assign screen shows one of each outcome
  * against a 1 Sep – 31 Dec 2026 deployment: Confirmed, Conditional, Blocked.
  */
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db/pg";
 import * as s from "@/db/schema";
+import { hashPassword } from "@/server/auth";
+import { installDefaultConfig } from "@/server/default-config";
 
 async function main() {
   const db = getDb();
@@ -106,8 +109,27 @@ async function main() {
     { typeId: wshoType!.id, reg: "WSHO/24/08812", issue: "2021-08-01", expiry: "2026-07-31" },
   ]); // Blocked — WSHO lapsed
 
+  // Default (production-shape) configuration — thresholds/recipients as data.
+  await installDefaultConfig(db, s.SYSTEM_ACTOR_ID);
+
+  // FICTIONAL users. Password for every demo account is "greensafe".
+  const pw = hashPassword("greensafe");
+  const [sundaram] = await db
+    .select({ id: s.person.id })
+    .from(s.person)
+    .where(eq(s.person.fullName, "R. Sundaram"))
+    .limit(1);
+  await db.insert(s.appUser).values([
+    { email: "karu@greensafe.test", fullName: "Karu (Director)", role: "director", passwordHash: pw },
+    { email: "coord@greensafe.test", fullName: "Deployment Coordinator", role: "deployment_coordinator", passwordHash: pw },
+    { email: "trainingadmin@greensafe.test", fullName: "Training Administrator", role: "training_admin", passwordHash: pw },
+    { email: "sundaram@greensafe.test", fullName: "R. Sundaram", role: "deployed_officer", passwordHash: pw, personId: sundaram?.id ?? null },
+  ]);
+
   // eslint-disable-next-line no-console
-  console.log("Seeded FICTIONAL demo data. Assign a WSHO for 1 Sep – 31 Dec 2026 to see all outcomes.");
+  console.log(
+    "Seeded FICTIONAL demo data + config + users (password 'greensafe'). Sign in as coord@greensafe.test to assign.",
+  );
   process.exit(0);
 }
 
