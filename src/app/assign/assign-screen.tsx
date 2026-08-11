@@ -1,9 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/trpc/react";
 import { OfficerSelector } from "./officer-selector";
 import { ValidationPanel } from "./validation-panel";
+
+const fieldLabel = "mb-1.5 block text-[13px] font-semibold";
+const control =
+  "h-10 w-full rounded-sm border border-rule bg-surface px-2.5 text-ink";
 
 /**
  * The signature screen (F1 / UXS §5.3). Two panes: the form on the left, the
@@ -29,7 +35,6 @@ export function AssignScreen() {
     { enabled: Boolean(roleId) && validStart },
   );
 
-  // Full assignment input for the live panel + the control.
   const input = useMemo(() => {
     if (!roleId || !site || !validStart || !personId) return null;
     return {
@@ -50,7 +55,6 @@ export function AssignScreen() {
   const canSave =
     input !== null && (outcome === "confirmed" || outcome === "conditional") && !create.isPending;
 
-  // Reset any prior selection when the role/period changes the candidate set.
   function pickRole(id: string) {
     setRoleId(id);
     setPersonId(undefined);
@@ -58,12 +62,14 @@ export function AssignScreen() {
   }
 
   return (
-    <div className="assign-grid">
+    <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
       {/* ---- left: the form ---- */}
-      <div className="card">
-        <div className="field">
-          <label htmlFor="role">Role required</label>
-          <select id="role" value={roleId} onChange={(e) => pickRole(e.target.value)}>
+      <div className="rounded-sm border border-rule bg-surface p-5">
+        <div className="mb-4">
+          <label htmlFor="role" className={fieldLabel}>
+            Role required
+          </label>
+          <select id="role" className={control} value={roleId} onChange={(e) => pickRole(e.target.value)}>
             <option value="">Select a role…</option>
             {roles.data?.map((r) => (
               <option key={r.id} value={r.id}>
@@ -73,10 +79,13 @@ export function AssignScreen() {
           </select>
         </div>
 
-        <div className="field">
-          <label htmlFor="site">Client and site</label>
+        <div className="mb-4">
+          <label htmlFor="site" className={fieldLabel}>
+            Client and site
+          </label>
           <select
             id="site"
+            className={control}
             value={siteId}
             onChange={(e) => {
               setSiteId(e.target.value);
@@ -92,32 +101,36 @@ export function AssignScreen() {
           </select>
         </div>
 
-        <div className="field" style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label htmlFor="start">Start date</label>
+        <div className="mb-4 flex gap-3">
+          <div className="flex-1">
+            <label htmlFor="start" className={fieldLabel}>
+              Start date
+            </label>
             <input
               id="start"
-              className="num"
               type="date"
+              className={cn(control, "font-mono")}
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
-          <div style={{ flex: 1 }}>
-            <label htmlFor="end">End date</label>
+          <div className="flex-1">
+            <label htmlFor="end" className={fieldLabel}>
+              End date
+            </label>
             <input
               id="end"
-              className="num"
               type="date"
+              className={cn(control, "font-mono")}
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
-            <div className="hint">Leave blank for an open-ended posting.</div>
+            <p className="mt-1 text-xs text-ink-muted">Leave blank for an open-ended posting.</p>
           </div>
         </div>
 
-        <div className="field">
-          <label>Officer</label>
+        <div className="mb-4">
+          <span className={fieldLabel}>Officer</span>
           {roleId && validStart ? (
             <OfficerSelector
               officers={officers.data ?? []}
@@ -128,7 +141,9 @@ export function AssignScreen() {
               }}
             />
           ) : (
-            <p className="hint">Choose a role and start date to see eligible officers.</p>
+            <p className="text-xs text-ink-muted">
+              Choose a role and start date to see eligible officers.
+            </p>
           )}
         </div>
       </div>
@@ -141,19 +156,17 @@ export function AssignScreen() {
           officerName={selectedName}
         />
 
-        <div className="actions">
-          <button
-            type="button"
-            className="btn"
-            disabled={!canSave}
-            onClick={() => input && create.mutate(input)}
-          >
+        <div className="mt-4 flex items-center gap-3">
+          <Button disabled={!canSave} onClick={() => input && create.mutate(input)}>
             {create.isSuccess ? "Saved" : "Save assignment"}
-          </button>
-          {outcome === "blocked" && <span className="btn-note">Blocked — see panel</span>}
+          </Button>
+          {outcome === "blocked" && (
+            <span className="text-[13px] font-semibold text-state-critical">Blocked — see panel</span>
+          )}
           {create.isSuccess && (
-            <span style={{ color: "var(--state-ok)", fontWeight: 600 }}>
-              Assignment saved{create.data?.result.outcome === "conditional" ? " — renewal task created" : ""}.
+            <span className="text-[13px] font-semibold text-state-ok">
+              Assignment saved
+              {create.data?.result.outcome === "conditional" ? " — renewal task created" : ""}.
             </span>
           )}
         </div>

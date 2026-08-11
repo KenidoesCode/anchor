@@ -1,4 +1,5 @@
 import type { GateOutcome } from "@/domain/gate";
+import { cn } from "@/lib/utils";
 
 export interface OfficerOption {
   personId: string;
@@ -20,9 +21,9 @@ const glyph: Record<GateOutcome, string> = {
   blocked: "✕",
 };
 const glyphColour: Record<GateOutcome, string> = {
-  confirmed: "var(--state-ok)",
-  conditional: "var(--state-warning)",
-  blocked: "var(--state-critical)",
+  confirmed: "text-state-ok",
+  conditional: "text-state-warning",
+  blocked: "text-state-critical",
 };
 
 /**
@@ -32,28 +33,34 @@ const glyphColour: Record<GateOutcome, string> = {
  */
 export function OfficerSelector({ officers, selectedId, onSelect }: Props) {
   if (officers.length === 0) {
-    return <p className="hint">No officers to show. Choose a role and start date.</p>;
+    return <p className="text-xs text-ink-muted">No officers to show. Choose a role and start date.</p>;
   }
 
   return (
-    <ul className="officers" role="listbox" aria-label="Officers">
+    <ul className="overflow-hidden rounded-sm border border-rule" role="listbox" aria-label="Officers">
       {officers.map((o) => {
         const ineligible = o.outcome === "blocked";
         return (
           <li key={o.personId} role="option" aria-selected={o.personId === selectedId}>
             <button
               type="button"
-              className={`officer${ineligible ? " ineligible" : ""}`}
-              aria-selected={o.personId === selectedId}
               disabled={ineligible}
+              aria-selected={o.personId === selectedId}
               onClick={() => !ineligible && onSelect(o.personId)}
+              className={cn(
+                "flex w-full items-center gap-2.5 border-b border-rule px-3 py-2.5 text-left last:border-b-0",
+                ineligible
+                  ? "cursor-not-allowed bg-[#fafbfb] text-ink-muted"
+                  : "cursor-pointer bg-surface hover:bg-canvas",
+                o.personId === selectedId && "bg-[#eef4fb] hover:bg-[#eef4fb]",
+              )}
             >
-              <span className="glyph" aria-hidden="true" style={{ color: glyphColour[o.outcome] }}>
+              <span aria-hidden="true" className={cn("w-4 text-center font-bold", glyphColour[o.outcome])}>
                 {glyph[o.outcome]}
               </span>
-              <span className="who">
-                <span className="name">{o.fullName}</span>
-                {o.reason && <span className="reason"> · {o.reason}</span>}
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold">{o.fullName}</span>
+                {o.reason && <span className="text-xs text-ink-muted"> · {o.reason}</span>}
               </span>
             </button>
           </li>

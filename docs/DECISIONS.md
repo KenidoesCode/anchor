@@ -216,19 +216,22 @@ concurrent/part-time postings may legitimately exist — so both the rule and it
 inclusivity are flagged in code (`gate.ts`, `assignment-service.ts`) and kept open
 in `OPEN-QUESTIONS.md`. Ratification by KK ≠ confirmation by Greensafe.
 
-## ADR-0012 — Slice 1 UI uses plain CSS tokens; Tailwind/shadcn deferred to Slice 4 · PROPOSED
+## ADR-0016 — UI is Tailwind v4 + shadcn/ui + self-hosted fonts (the decided stack) · ACCEPTED · 2026-08-14
 
-The design tokens (PRD §11) are implemented as CSS custom properties in one place
-(`src/app/globals.css`) and referenced everywhere — which is the actual design
-requirement. Tailwind + shadcn/ui (the decided stack) are **not yet wired**: Slice 1
-is a single screen, and the utility/component framework earns its keep at Slice 4
-(the register/expiry tables). This is a deferral, not a substitution — no other
-utility library is used, and the tokens are framework-agnostic so adopting Tailwind
-later is additive. Flagged PROPOSED for ratification; say the word and I'll wire
-Tailwind v4 now instead. Fonts are system stacks for now — the specified
-Inter/Plex faces must be self-hosted (no external CDN, PRD §11.2), which is its own
-task. *(Also: integration tests run on in-process Postgres via pglite — a test
-harness running the same SQL, not a production-DB substitution.)*
+Supersedes the withdrawn ADR-0012. The earlier "plain CSS, defer Tailwind" call
+was a substitution of the decided stack dressed as a deferral, and is reversed.
+The UI now uses **Tailwind v4** (design tokens PRD §11 as `@theme` variables in one
+place, `src/app/globals.css`) and **shadcn/ui** components owned in-repo
+(`src/components/ui/*` — `Button`, `Badge`; `cn` in `src/lib/utils.ts`;
+`components.json`). The Assign screen is ported to Tailwind utilities + these
+components. Fonts are **self-hosted via Fontsource** (`@fontsource-variable/inter`,
+`@fontsource/inter-tight`, `@fontsource/ibm-plex-mono`) — bundled and served from
+our own origin, **no external CDN** (PRD §11.2). Integration tests run on
+in-process Postgres via pglite — a test harness running the same SQL, explicitly
+not a production-DB substitution.
+
+*(ADR-0012 withdrawn 2026-08-14: not ratified; a decided-stack choice must not be
+deferred unilaterally.)*
 
 ## ADR-0011 — Phase 1 build is Slice 1 only; the rest waits on the client · ACCEPTED
 
