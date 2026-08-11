@@ -1,20 +1,29 @@
 /**
  * Greensafe Assure — database schema (Phase 1 / M1 Competency & Deployment Register).
  *
- * Implements the ratified schema decisions in docs/DECISIONS.md:
- *  - ADR-0002 effective-dated, versioned role requirements
+ * Ratified schema decisions in docs/DECISIONS.md:
+ *  - ADR-0002 effective-dated, versioned role requirements (+ DB invariants: one
+ *    current version per role, non-overlapping ranges, content immutable once pinned)
  *  - ADR-0003 Role entity + AND/OR requirement composition
- *  - ADR-0004 escalation ledger (present; behaviour is Slice 5)
+ *  - ADR-0004 escalation ledger (unique cert+stage; behaviour is Slice 5)
  *  - ADR-0007 Assignment (validated transaction) vs Deployment (posting), 1:1
- *  - ADR-0008 RenewalTask closes only on evidence (present; behaviour Slice 5)
+ *  - ADR-0008 RenewalTask closes only on evidence (CHECK + procedure; Slice 5)
  *  - ADR-0009 line_manager / account_owner, nullable, Director fallback
+ *  - ADR-0013 temporal (system-versioned) certification history
  *
- * Every table carries audit columns from this first migration (CLAUDE.md).
+ * Every referential column is a real FK (no plain-uuid dangling holes in a
+ * compliance schema). Every table carries audit columns from migration one.
  * Soft delete only: deleted_at, never a hard delete inside retention (Q-P1-13).
+ *
+ * Triggers that cannot be expressed in Drizzle (system-versioned history,
+ * non-overlapping validity, immutability-once-pinned) live in the custom SQL
+ * migration alongside the generated one; see drizzle/ and DECISIONS ADR-0002/0013.
  */
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
+  check,
   date,
   integer,
   numeric,
@@ -23,6 +32,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -31,8 +41,10 @@ export const SYSTEM_ACTOR_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * Audit columns present on every table (CLAUDE.md non-negotiable rule).
- * `by` columns reference the acting user's id; not FK-constrained to person to
- * avoid a bootstrap cycle (the system actor and first person are self-referential).
+ * `created_by`/`updated_by` reference the acting user; they are intentionally
+ * NOT FK-constrained to person — the bootstrap system actor and the first person
+ * are self-referential, and a hard FK there would create an unresolvable insert
+ * cycle. This is the one deliberate non-FK, and it is defaulted, never dangling.
  */
 const audit = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -77,6 +89,7 @@ export const renewalSource = pgEnum("renewal_source", [
 ]);
 export const renewalStatus = pgEnum("renewal_status", ["open", "closed"]);
 export const overrideStatus = pgEnum("override_status", ["open", "resolved"]);
+export const historyOperation = pgEnum("history_operation", ["insert", "update", "delete"]);
 
 /* ------------------------------------------------------------- people ----- */
 
@@ -86,8 +99,8 @@ export const person = pgTable("person", {
   employmentStatus: employmentStatus("employment_status").notNull().default("employed"),
   homeBase: text("home_base"),
   languages: text("languages").array().notNull().default(sql`ARRAY[]::text[]`),
-  // ADR-0009: escalation 60-day recipient; nullable, Director fallback.
-  lineManagerId: uuid("line_manager_id"),
+  // ADR-0009: escalation 60-day recipient; nullable, Director fallback. Real FK.
+  lineManagerId: uuid("line_manager_id").references((): AnyPgColumn => person.id),
   // National identifier: envelope-encrypted + masked by default (PRD §10.2).
   // Slice 3 owns encryption/masking; Slice 1 never populates or returns this.
   nationalIdCiphertext: text("national_id_ciphertext"),
@@ -98,8 +111,8 @@ export const organisation = pgTable("organisation", {
   id: pk(),
   name: text("name").notNull(),
   sector: text("sector"),
-  // ADR-0009: escalation 30-day recipient; nullable, Director fallback.
-  accountOwnerId: uuid("account_owner_id"),
+  // ADR-0009: escalation 30-day recipient; nullable, Director fallback. Real FK.
+  accountOwnerId: uuid("account_owner_id").references((): AnyPgColumn => person.id),
   ...audit,
 });
 
@@ -148,9 +161,37 @@ export const certification = pgTable("certification", {
   issueDate: date("issue_date", { mode: "string" }).notNull(),
   expiryDate: date("expiry_date", { mode: "string" }).notNull(),
   scopeLimitations: text("scope_limitations"),
-  // ADR-0008: a renewal supersedes; the old row is retained (soft-deleted).
-  supersedesCertificationId: uuid("supersedes_certification_id"),
+  // ADR-0008: a renewal supersedes; the old row is retained (soft-deleted). Real FK.
+  supersedesCertificationId: uuid("supersedes_certification_id").references(
+    (): AnyPgColumn => certification.id,
+  ),
   ...audit,
+});
+
+/**
+ * ADR-0013: system-versioned (transaction-time) history of every certification
+ * mutation. An in-place expiry correction closes the current row and opens a new
+ * one — it never rewrites the past. The past-date exposure figure is
+ * reconstructed from here (src/server/reporting.ts), so it is defensible for any
+ * date and stable under later corrections. Populated by a trigger (custom migration).
+ */
+export const certificationHistory = pgTable("certification_history", {
+  historyId: uuid("history_id").primaryKey().default(sql`gen_random_uuid()`),
+  certificationId: uuid("certification_id")
+    .notNull()
+    .references(() => certification.id),
+  personId: uuid("person_id").notNull(),
+  certificationTypeId: uuid("certification_type_id").notNull(),
+  registrationNumber: text("registration_number").notNull(),
+  issueDate: date("issue_date", { mode: "string" }).notNull(),
+  expiryDate: date("expiry_date", { mode: "string" }).notNull(),
+  scopeLimitations: text("scope_limitations"),
+  supersedesCertificationId: uuid("supersedes_certification_id"),
+  certDeletedAt: timestamp("cert_deleted_at", { withTimezone: true }),
+  operation: historyOperation("operation").notNull(),
+  // Transaction-time validity of this snapshot. sys_to null = current belief.
+  sysFrom: timestamp("sys_from", { withTimezone: true }).notNull(),
+  sysTo: timestamp("sys_to", { withTimezone: true }),
 });
 
 /* ----------------------------------------- roles & requirement grammar ---- */
@@ -164,7 +205,9 @@ export const role = pgTable("role", {
   ...audit,
 });
 
-/* ADR-0002: effective-dated requirement versions; deployments pin one. */
+/* ADR-0002: effective-dated requirement versions; deployments pin one.
+ * DB invariants (custom migration): exactly one current version per role
+ * (partial unique index below) and non-overlapping validity ranges (trigger). */
 export const roleRequirementVersion = pgTable(
   "role_requirement_version",
   {
@@ -177,7 +220,13 @@ export const roleRequirementVersion = pgTable(
     validTo: date("valid_to", { mode: "string" }), // null = current
     ...audit,
   },
-  (t) => [unique("role_requirement_version_role_no").on(t.roleId, t.versionNo)],
+  (t) => [
+    unique("role_requirement_version_role_no").on(t.roleId, t.versionNo),
+    // Exactly one current (open-ended, live) version per role.
+    uniqueIndex("rrv_one_current_per_role")
+      .on(t.roleId)
+      .where(sql`${t.validTo} is null and ${t.deletedAt} is null`),
+  ],
 );
 
 export const requirementGroup = pgTable("requirement_group", {
@@ -186,8 +235,8 @@ export const requirementGroup = pgTable("requirement_group", {
     .notNull()
     .references(() => roleRequirementVersion.id),
   combinator: combinator("combinator").notNull(),
-  // null = the version's root group; otherwise nests under a parent group.
-  parentGroupId: uuid("parent_group_id"),
+  // null = the version's root group; otherwise nests under a parent group. Real FK.
+  parentGroupId: uuid("parent_group_id").references((): AnyPgColumn => requirementGroup.id),
   sort: integer("sort").notNull().default(0),
   ...audit,
 });
@@ -269,7 +318,8 @@ export const escalationEvent = pgTable(
       .references(() => certification.id),
     stage: escalationStage("stage").notNull(),
     firedAt: timestamp("fired_at", { withTimezone: true }).notNull().defaultNow(),
-    recipientId: uuid("recipient_id"),
+    // ADR-0009: named recipient (else recipient_role carries the Director fallback). Real FK.
+    recipientId: uuid("recipient_id").references((): AnyPgColumn => person.id),
     recipientRole: text("recipient_role"),
     channel: notificationChannel("channel").notNull(),
     deliveryOutcome: deliveryOutcome("delivery_outcome").notNull().default("pending"),
@@ -279,22 +329,35 @@ export const escalationEvent = pgTable(
   (t) => [unique("escalation_event_cert_stage").on(t.certificationId, t.stage)],
 );
 
-export const renewalTask = pgTable("renewal_task", {
-  id: pk(),
-  certificationId: uuid("certification_id")
-    .notNull()
-    .references(() => certification.id),
-  personId: uuid("person_id")
-    .notNull()
-    .references(() => person.id),
-  ownerId: uuid("owner_id"),
-  dueDate: date("due_date", { mode: "string" }).notNull(),
-  source: renewalSource("source").notNull(),
-  status: renewalStatus("status").notNull().default("open"),
-  // ADR-0008: closes ONLY when a later-dated certificate is uploaded.
-  closedByCertificationId: uuid("closed_by_certification_id"),
-  ...audit,
-});
+export const renewalTask = pgTable(
+  "renewal_task",
+  {
+    id: pk(),
+    certificationId: uuid("certification_id")
+      .notNull()
+      .references(() => certification.id),
+    personId: uuid("person_id")
+      .notNull()
+      .references(() => person.id),
+    ownerId: uuid("owner_id"),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    source: renewalSource("source").notNull(),
+    status: renewalStatus("status").notNull().default("open"),
+    // ADR-0008: closes ONLY when a later-dated certificate is uploaded. Real FK.
+    closedByCertificationId: uuid("closed_by_certification_id").references(
+      () => certification.id,
+    ),
+    ...audit,
+  },
+  // ADR-0008: a closed task must carry its closing certificate. The
+  // expiry-must-be-later rule stays in the closing procedure (Slice 5).
+  (t) => [
+    check(
+      "renewal_task_closed_requires_cert",
+      sql`${t.status} <> 'closed' or ${t.closedByCertificationId} is not null`,
+    ),
+  ],
+);
 
 /* --------------------------------------------------------- append log ----- */
 /* PRD §10.5 append-only event log. Full coverage is Slice 2; the table       */

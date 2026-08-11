@@ -5,8 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1786432323183,
-      "tag": "0000_silent_mongoose",
+      "when": 1786459965696,
+      "tag": "0000_early_red_wolf",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786459975270,
+      "tag": "0001_invariants_and_history",
       "breakpoints": true
     }
   ]

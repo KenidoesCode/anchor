@@ -4,6 +4,7 @@ CREATE TYPE "public"."delivery_outcome" AS ENUM('pending', 'sent', 'failed');-->
 CREATE TYPE "public"."deployment_status" AS ENUM('active', 'ended');--> statement-breakpoint
 CREATE TYPE "public"."employment_status" AS ENUM('employed', 'associate', 'inactive');--> statement-breakpoint
 CREATE TYPE "public"."escalation_stage" AS ENUM('d90', 'd60', 'd30', 'd7', 'expiry');--> statement-breakpoint
+CREATE TYPE "public"."history_operation" AS ENUM('insert', 'update', 'delete');--> statement-breakpoint
 CREATE TYPE "public"."notification_channel" AS ENUM('in_app', 'email', 'sms');--> statement-breakpoint
 CREATE TYPE "public"."override_status" AS ENUM('open', 'resolved');--> statement-breakpoint
 CREATE TYPE "public"."renewal_source" AS ENUM('cascade_90d', 'conditional_assignment');--> statement-breakpoint
@@ -50,6 +51,22 @@ CREATE TABLE "certification" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_by" uuid DEFAULT '00000000-0000-0000-0000-000000000000' NOT NULL,
 	"deleted_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "certification_history" (
+	"history_id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"certification_id" uuid NOT NULL,
+	"person_id" uuid NOT NULL,
+	"certification_type_id" uuid NOT NULL,
+	"registration_number" text NOT NULL,
+	"issue_date" date NOT NULL,
+	"expiry_date" date NOT NULL,
+	"scope_limitations" text,
+	"supersedes_certification_id" uuid,
+	"cert_deleted_at" timestamp with time zone,
+	"operation" "history_operation" NOT NULL,
+	"sys_from" timestamp with time zone NOT NULL,
+	"sys_to" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "certification_type" (
@@ -167,7 +184,8 @@ CREATE TABLE "renewal_task" (
 	"created_by" uuid DEFAULT '00000000-0000-0000-0000-000000000000' NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_by" uuid DEFAULT '00000000-0000-0000-0000-000000000000' NOT NULL,
-	"deleted_at" timestamp with time zone
+	"deleted_at" timestamp with time zone,
+	CONSTRAINT "renewal_task_closed_requires_cert" CHECK ("renewal_task"."status" <> 'closed' or "renewal_task"."closed_by_certification_id" is not null)
 );
 --> statement-breakpoint
 CREATE TABLE "requirement_group" (
@@ -239,16 +257,24 @@ ALTER TABLE "assignment" ADD CONSTRAINT "assignment_requirement_version_id_role_
 ALTER TABLE "assignment" ADD CONSTRAINT "assignment_override_id_override_record_id_fk" FOREIGN KEY ("override_id") REFERENCES "public"."override_record"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "certification" ADD CONSTRAINT "certification_person_id_person_id_fk" FOREIGN KEY ("person_id") REFERENCES "public"."person"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "certification" ADD CONSTRAINT "certification_certification_type_id_certification_type_id_fk" FOREIGN KEY ("certification_type_id") REFERENCES "public"."certification_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "certification" ADD CONSTRAINT "certification_supersedes_certification_id_certification_id_fk" FOREIGN KEY ("supersedes_certification_id") REFERENCES "public"."certification"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "certification_history" ADD CONSTRAINT "certification_history_certification_id_certification_id_fk" FOREIGN KEY ("certification_id") REFERENCES "public"."certification"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "certification_type" ADD CONSTRAINT "certification_type_authority_id_authority_id_fk" FOREIGN KEY ("authority_id") REFERENCES "public"."authority"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "deployment" ADD CONSTRAINT "deployment_assignment_id_assignment_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."assignment"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "deployment" ADD CONSTRAINT "deployment_organisation_id_organisation_id_fk" FOREIGN KEY ("organisation_id") REFERENCES "public"."organisation"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "deployment" ADD CONSTRAINT "deployment_site_id_site_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."site"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "deployment" ADD CONSTRAINT "deployment_role_id_role_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."role"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "escalation_event" ADD CONSTRAINT "escalation_event_certification_id_certification_id_fk" FOREIGN KEY ("certification_id") REFERENCES "public"."certification"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "escalation_event" ADD CONSTRAINT "escalation_event_recipient_id_person_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."person"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "organisation" ADD CONSTRAINT "organisation_account_owner_id_person_id_fk" FOREIGN KEY ("account_owner_id") REFERENCES "public"."person"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "person" ADD CONSTRAINT "person_line_manager_id_person_id_fk" FOREIGN KEY ("line_manager_id") REFERENCES "public"."person"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "renewal_task" ADD CONSTRAINT "renewal_task_certification_id_certification_id_fk" FOREIGN KEY ("certification_id") REFERENCES "public"."certification"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "renewal_task" ADD CONSTRAINT "renewal_task_person_id_person_id_fk" FOREIGN KEY ("person_id") REFERENCES "public"."person"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "renewal_task" ADD CONSTRAINT "renewal_task_closed_by_certification_id_certification_id_fk" FOREIGN KEY ("closed_by_certification_id") REFERENCES "public"."certification"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "requirement_group" ADD CONSTRAINT "requirement_group_requirement_version_id_role_requirement_version_id_fk" FOREIGN KEY ("requirement_version_id") REFERENCES "public"."role_requirement_version"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "requirement_group" ADD CONSTRAINT "requirement_group_parent_group_id_requirement_group_id_fk" FOREIGN KEY ("parent_group_id") REFERENCES "public"."requirement_group"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "requirement_item" ADD CONSTRAINT "requirement_item_group_id_requirement_group_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."requirement_group"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "requirement_item" ADD CONSTRAINT "requirement_item_certification_type_id_certification_type_id_fk" FOREIGN KEY ("certification_type_id") REFERENCES "public"."certification_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_requirement_version" ADD CONSTRAINT "role_requirement_version_role_id_role_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."role"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "site" ADD CONSTRAINT "site_organisation_id_organisation_id_fk" FOREIGN KEY ("organisation_id") REFERENCES "public"."organisation"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "site" ADD CONSTRAINT "site_organisation_id_organisation_id_fk" FOREIGN KEY ("organisation_id") REFERENCES "public"."organisation"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "rrv_one_current_per_role" ON "role_requirement_version" USING btree ("role_id") WHERE "role_requirement_version"."valid_to" is null and "role_requirement_version"."deleted_at" is null;
