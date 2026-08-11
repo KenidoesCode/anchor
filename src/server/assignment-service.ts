@@ -220,3 +220,108 @@ export class AssignmentBlockedError extends Error {
     this.name = "AssignmentBlockedError";
   }
 }
+
+export class OverrideError extends Error {}
+
+/**
+ * Director override (F1 §3.2, PRD §5.1). A block may be overridden ONLY by a
+ * Director, ONLY with a written justification, and the override is written
+ * permanently to the activity log and left OPEN so the deployment surfaces on
+ * the Director Overview until resolved (AC1.5). Overrides are expected to be
+ * rare; frequency is itself a monitored metric.
+ */
+export async function createOverriddenAssignment(
+  db: Db,
+  input: AssignmentInput,
+  override: { requestedBy: string; justification: string },
+  actorId: string,
+  now: string,
+): Promise<{ assignmentId: string; deploymentId: string; overrideId: string }> {
+  const justification = override.justification.trim();
+  if (justification.length < 10) {
+    throw new OverrideError("A written justification is required to override a block.");
+  }
+
+  const result = await runGate(db, input, now);
+  if (result.outcome !== "blocked") {
+    throw new OverrideError("This assignment is not blocked; no override is needed.");
+  }
+  if (!result.requirementVersionId) {
+    throw new OverrideError("No requirement is configured for this role; it cannot be overridden.");
+  }
+
+  return db.transaction(async (tx) => {
+    const [ov] = await tx
+      .insert(s.overrideRecord)
+      .values({
+        requestedBy: override.requestedBy,
+        approvedBy: actorId,
+        justification,
+        status: "open",
+        createdBy: actorId,
+        updatedBy: actorId,
+      })
+      .returning({ id: s.overrideRecord.id });
+    const overrideId = ov!.id;
+
+    const [a] = await tx
+      .insert(s.assignment)
+      .values({
+        personId: input.personId,
+        roleId: input.roleId,
+        requirementVersionId: result.requirementVersionId,
+        outcome: "overridden",
+        overrideId,
+        validatedBy: actorId,
+        createdBy: actorId,
+        updatedBy: actorId,
+      })
+      .returning({ id: s.assignment.id });
+    const assignmentId = a!.id;
+
+    const [d] = await tx
+      .insert(s.deployment)
+      .values({
+        assignmentId,
+        organisationId: input.organisationId,
+        siteId: input.siteId,
+        roleId: input.roleId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        chargeRate: input.chargeRate?.toFixed(2) ?? null,
+        createdBy: actorId,
+        updatedBy: actorId,
+      })
+      .returning({ id: s.deployment.id });
+
+    // AC1.5: attributable to a named user, with justification, immutable timestamp.
+    await tx.insert(s.eventLog).values({
+      actorId,
+      action: "assignment.override",
+      entity: "deployment",
+      entityId: d!.id,
+      detail: `overrode: ${result.reasons.map((r) => r.message).join(" ")}`,
+      reason: justification,
+    });
+
+    return { assignmentId, deploymentId: d!.id, overrideId };
+  });
+}
+
+/** Resolve an open override once the underlying issue is fixed. */
+export async function resolveOverride(db: Db, overrideId: string, actorId: string): Promise<void> {
+  await db
+    .update(s.overrideRecord)
+    .set({ status: "resolved", updatedBy: actorId })
+    .where(eq(s.overrideRecord.id, overrideId));
+  await logActivityInline(db, actorId, overrideId);
+}
+
+async function logActivityInline(db: Db, actorId: string, overrideId: string): Promise<void> {
+  await db.insert(s.eventLog).values({
+    actorId,
+    action: "override.resolve",
+    entity: "override_record",
+    entityId: overrideId,
+  });
+}

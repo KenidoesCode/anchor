@@ -1,5 +1,6 @@
-import { sql } from "drizzle-orm";
+import { and, count, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import type { Db } from "@/db/pg";
+import * as s from "@/db/schema";
 
 /**
  * The number the product is judged on (PRD AC1.4): deployed personnel running
@@ -62,4 +63,46 @@ export async function deployedUnderLapsedCert(
     (res as unknown as { rows?: Array<{ n: number | string }> }).rows ??
     (res as unknown as Array<{ n: number | string }>);
   return Number(rows[0]?.n ?? 0);
+}
+
+/** Days-forward ISO date helper (deterministic; `today` is injected). */
+function addDaysIso(iso: string, days: number): string {
+  return new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+export interface OverviewTiles {
+  lapsedAmongDeployed: number;
+  expiringWithin90: number;
+  openOverrides: number;
+}
+
+/**
+ * The Phase-1 Director Overview tiles (M1 only, ADR-0006): the exposure numbers
+ * the product is judged on. M2/M3 regions are absent until those modules exist.
+ */
+export async function overviewTiles(db: Db, today: string): Promise<OverviewTiles> {
+  const lapsedAmongDeployed = await deployedUnderLapsedCert(db, today);
+
+  const horizon = addDaysIso(today, 90);
+  const [expiring] = await db
+    .select({ n: count() })
+    .from(s.certification)
+    .where(
+      and(
+        isNull(s.certification.deletedAt),
+        gte(s.certification.expiryDate, today),
+        lte(s.certification.expiryDate, horizon),
+      ),
+    );
+
+  const [overrides] = await db
+    .select({ n: count() })
+    .from(s.overrideRecord)
+    .where(and(eq(s.overrideRecord.status, "open"), isNull(s.overrideRecord.deletedAt)));
+
+  return {
+    lapsedAmongDeployed,
+    expiringWithin90: Number(expiring?.n ?? 0),
+    openOverrides: Number(overrides?.n ?? 0),
+  };
 }
