@@ -1,6 +1,21 @@
 # Deploying Greensafe Assure
 
-Two paths. Pick by purpose.
+## Fastest — zero config (for the demo)
+
+Import the repo on **vercel.com** and click **Deploy**. That's it — no database,
+no environment variables. When `DATABASE_URL` is not set, the app runs a
+self-contained **in-memory Postgres** that migrates and seeds the fictional demo
+scenario on first request. Open the URL, go to `/signin`, log in as
+`karu@greensafe.test` / `greensafe`.
+
+Caveat: in-memory data lives per running instance and resets on a cold start —
+perfect for a single-user demo, not for real data. **Warm it right before you
+present** (open the URL once, sign in) and run the demo in one sitting. For
+anything durable or shared, set `DATABASE_URL` to a Neon database (below).
+
+---
+
+## Two persistent paths. Pick by purpose.
 
 | | Fast (a demo link) | Correct (real data) |
 |---|---|---|

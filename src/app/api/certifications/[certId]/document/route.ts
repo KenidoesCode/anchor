@@ -22,7 +22,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ certId: string
   const invalid = validateDocument(file.type, file.size);
   if (invalid) return NextResponse.json({ error: invalid }, { status: 415 });
 
-  const db = getDb();
+  const db = await getDb();
   const [cert] = await db.select({ id: s.certification.id }).from(s.certification).where(eq(s.certification.id, certId)).limit(1);
   if (!cert) return NextResponse.json({ error: "Certification not found." }, { status: 404 });
 
@@ -46,7 +46,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ certId: string 
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
 
   const { certId } = await ctx.params;
-  const db = getDb();
+  const db = await getDb();
   const [cert] = await db
     .select({ key: s.certification.documentKey, filename: s.certification.documentFilename, personId: s.certification.personId })
     .from(s.certification)

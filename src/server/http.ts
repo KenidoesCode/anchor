@@ -13,5 +13,5 @@ export function readCookie(req: Request, name: string): string | undefined {
 
 /** Resolve the signed-in user for a raw route handler request (or null). */
 export async function userFromRequest(req: Request): Promise<AuthUser | null> {
-  return resolveSession(getDb(), readCookie(req, SESSION_COOKIE));
+  return resolveSession(await getDb(), readCookie(req, SESSION_COOKIE));
 }

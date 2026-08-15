@@ -4,7 +4,7 @@ import { getDb } from "./pg";
 
 /** Apply generated SQL migrations. Idempotent (drizzle tracks applied ones). */
 export async function runMigrations(): Promise<void> {
-  await migrate(getDb(), { migrationsFolder: join(process.cwd(), "drizzle") });
+  await migrate(await getDb(), { migrationsFolder: join(process.cwd(), "drizzle") });
 }
 
 // CLI entry: `pnpm db:migrate`

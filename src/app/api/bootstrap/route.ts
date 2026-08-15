@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   try {
     await runMigrations();
 
-    const db = getDb();
+    const db = await getDb();
     const existing = await db.select({ id: s.appUser.id }).from(s.appUser).limit(1);
     let seeded = false;
     if (existing.length === 0 && process.env.GS_DEMO_SEED === "1") {

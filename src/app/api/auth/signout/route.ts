@@ -14,7 +14,7 @@ function readCookie(req: Request, name: string): string | undefined {
 
 export async function POST(req: Request) {
   const token = readCookie(req, SESSION_COOKIE);
-  await destroySession(getDb(), token);
+  await destroySession(await getDb(), token);
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
   return res;

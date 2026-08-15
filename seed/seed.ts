@@ -104,7 +104,8 @@ export async function seedDemo(db: Db): Promise<void> {
 
 // CLI entry: `pnpm db:seed`
 if (process.argv[1] && process.argv[1].endsWith("seed.ts")) {
-  seedDemo(getDb())
+  getDb()
+    .then((db) => seedDemo(db))
     .then(() => {
       // eslint-disable-next-line no-console
       console.log("Seeded FICTIONAL demo scenario, config and users (password 'greensafe'). See DEMO.md.");

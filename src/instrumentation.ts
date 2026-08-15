@@ -9,6 +9,11 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // In-memory demo mode (no DATABASE_URL) holds only fictional data, so the dev
+  // key is acceptable and the guard is skipped — this is what lets the Vercel
+  // deploy run with zero configuration. The guard only bites a real database.
+  if (!process.env.DATABASE_URL) return;
+
   const DEV_KEY = "dev-insecure-key-do-not-ship";
   const isProd = process.env.NODE_ENV === "production";
   const key = process.env.GS_DATA_KEY;

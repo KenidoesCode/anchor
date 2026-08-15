@@ -22,7 +22,7 @@ export async function startJobs(
   await boss.start();
 
   await boss.work(CASCADE_QUEUE, async () => {
-    const db = getDb();
+    const db = await getDb();
     const today = new Date().toISOString().slice(0, 10);
     const result = await runEscalationCascade(db, today);
     await dispatchPending(db);

@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
   }
 
-  const db = getDb();
+  const db = await getDb();
   const user = await authenticate(db, body.email, body.password);
   if (!user) {
     // Never reveal which half was wrong; never log the password.

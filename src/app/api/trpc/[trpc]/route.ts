@@ -14,7 +14,7 @@ function readCookie(req: Request, name: string): string | undefined {
 }
 
 const handler = async (req: Request) => {
-  const db = getDb();
+  const db = await getDb();
   const user = await resolveSession(db, readCookie(req, SESSION_COOKIE));
   return fetchRequestHandler({
     endpoint: "/api/trpc",
