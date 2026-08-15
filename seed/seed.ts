@@ -14,7 +14,7 @@
  *   - Populated cascade output (notifications, renewal tasks) and activity log
  */
 import { eq } from "drizzle-orm";
-import { getDb } from "@/db/pg";
+import { getDb, type Db } from "@/db/pg";
 import * as s from "@/db/schema";
 import { createAssignment, createOverriddenAssignment } from "@/server/assignment-service";
 import { hashPassword } from "@/server/auth";
@@ -25,8 +25,12 @@ import { dispatchPending } from "@/server/notifications";
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (base: string, n: number) => iso(new Date(Date.parse(`${base}T00:00:00Z`) + n * 86_400_000));
 
-async function main() {
-  const db = getDb();
+/**
+ * Load the FICTIONAL demo scenario. Reusable so the app can self-seed on first
+ * boot in a DEMO environment (guarded by GS_DEMO_SEED). Never run this against a
+ * real production database — it is invented data (CLAUDE.md).
+ */
+export async function seedDemo(db: Db): Promise<void> {
   const A = s.SYSTEM_ACTOR_ID;
   const today = iso(new Date());
 
@@ -96,12 +100,18 @@ async function main() {
     { email: "officer@greensafe.test", fullName: "R. Sundaram", role: "deployed_officer", passwordHash: pw, personId: sPerson?.id ?? null },
   ]);
 
-  // eslint-disable-next-line no-console
-  console.log("Seeded FICTIONAL demo scenario, config and users (password 'greensafe'). See DEMO.md.");
-  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// CLI entry: `pnpm db:seed`
+if (process.argv[1] && process.argv[1].endsWith("seed.ts")) {
+  seedDemo(getDb())
+    .then(() => {
+      // eslint-disable-next-line no-console
+      console.log("Seeded FICTIONAL demo scenario, config and users (password 'greensafe'). See DEMO.md.");
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

@@ -1,20 +1,22 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import { join } from "node:path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { Pool } from "pg";
+import { getDb } from "./pg";
 
-/** Apply generated SQL migrations to the database in DATABASE_URL. */
-async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set");
-  const pool = new Pool({ connectionString: url });
-  const db = drizzle(pool);
-  await migrate(db, { migrationsFolder: "./drizzle" });
-  await pool.end();
-  // eslint-disable-next-line no-console
-  console.log("Migrations applied.");
+/** Apply generated SQL migrations. Idempotent (drizzle tracks applied ones). */
+export async function runMigrations(): Promise<void> {
+  await migrate(getDb(), { migrationsFolder: join(process.cwd(), "drizzle") });
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// CLI entry: `pnpm db:migrate`
+if (process.argv[1] && process.argv[1].endsWith("migrate.ts")) {
+  runMigrations()
+    .then(() => {
+      // eslint-disable-next-line no-console
+      console.log("Migrations applied.");
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

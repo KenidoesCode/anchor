@@ -1,7 +1,10 @@
 /**
  * Runs once at server boot (not at build). Fails LOUDLY rather than warning if
- * the development encryption key would run in production (per the final-pass
- * brief). KMS is not wired; the dev key must never protect real data.
+ * the development encryption key would run in production. KMS is not wired; the
+ * dev key must never protect real data.
+ *
+ * DB migrate/seed is NOT done here (the Edge instrumentation build can't take
+ * node-postgres) — use the Node-runtime route /api/bootstrap instead.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
